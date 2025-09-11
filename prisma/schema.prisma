@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
   output   = "../generated/prisma"
@@ -14,142 +8,249 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User model for authentication and profile management
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique // Bỏ đi @unique => Lí do: đỡ conflict với Google SSO + Tài khoản thường
-  hashPassword  String
-  firstName String?
-  lastName  String?
-  avatar    String?
-  role      Role     @default(USER)
+  id                        String                      @id @default(cuid())
+  fullName                  String?
+  userName                  String?                     @unique
+  email                     String                      @unique
+  phone                     String?                     @unique
+  avatarUrl                 String?
+  role                      Role                        @default(USER)
+  passwordHash              String?
+  emailVerifiedAt           DateTime?
+  lastLogin                 DateTime?
+  twoFactorEnabled          Boolean                     @default(false)
+  twoFactorSecret           String?
+  twoFactorBackupCodes      String[]
+  createdAt                 DateTime                    @default(now())
+  updatedAt                 DateTime                    @updatedAt
+  conversations             conversations[]
+  email_verification_tokens email_verification_tokens[]
+  group_members             group_members[]
+  groups                    groups[]
+  invitations               invitations[]
+  notes                     notes[]
+  password_reset_tokens     password_reset_tokens[]
+  sessions                  sessions[]
+  ssoAccounts               ssoAccount[]
 
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt // Prisma và cơ sở dữ liệu tự động quản lý. Trường này sẽ được cập nhật mỗi khi có bất kỳ thay đổi nào đối với bản ghi User đó
-  lastLogin DateTime? // phải gọi new Date() để cập nhật thời gian tại ngay thời điểm đó
-  
-  // SaaS relationships
-  organizations OrganizationMember[]
-  createdOrgs   Organization[]       @relation("OrganizationCreator")
-  apiKeys       ApiKey[]
-  // Liên kết các tài khoản SSO
-  ssoAccounts   ssoAccount[]  
   @@map("users")
-} 
-// ssoAccount model for loging, and registering Account SSO
+}
 
 model ssoAccount {
-  id              String   @id @default(cuid())
-  provider        String   // Google, Facebook, GitHub...
-  providerId String // ID duy nhất do provider cung cấp
-  // Liên kết với User
-  userId String
-  user   User   @relation(fields: [userId], references: [id])
+  id         String   @id @default(cuid())
+  provider   String
+  providerId String
+  userId     String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  @@unique([provider, providerId]) // Đảm bảo một tài khoản SSO chỉ liên kết một lần
+  @@unique([provider, providerId])
   @@map("sso_accounts")
 }
 
-// Organization/Tenant model for multi-tenancy
-model Organization {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  description String?
-  logo        String?
-  
-  // Subscription info
-  planType    PlanType @default(FREE)
-  planExpiry  DateTime?
-  
-  // Settings
-  isActive    Boolean  @default(true)
-  
-  // Timestamps
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  // Relationships
-  creator     User                   @relation("OrganizationCreator", fields: [creatorId], references: [id])
-  creatorId   String
-  members     OrganizationMember[]
-  apiKeys     ApiKey[]
-  
-  @@map("organizations")
+model email_verification_tokens {
+  id        String   @id
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userId    String
+  users     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-// Organization membership with roles
-model OrganizationMember {
-  id     String           @id @default(cuid())
-  role   OrganizationRole @default(MEMBER)
-  
-  // Timestamps
-  joinedAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  // Relationships
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId       String
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  organizationId String
-  
-  @@unique([userId, organizationId])
-  @@map("organization_members")
+model invitations {
+  id          String           @id
+  email       String
+  role        GroupRole        @default(MEMBER)
+  token       String           @unique
+  status      InvitationStatus @default(PENDING)
+  expiresAt   DateTime
+  groupId     String
+  invitedById String
+  createdAt   DateTime         @default(now())
+  groups      groups           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  users       User             @relation(fields: [invitedById], references: [id])
 }
 
-// API Keys for external integrations
-model ApiKey {
-  id        String   @id @default(cuid())
+model password_reset_tokens {
+  id        String   @id
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userId    String
+  users     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model plans {
+  id                  String   @id
+  name                String   @unique
+  price               Float
+  maxGroups           Int      @default(1)
+  maxMembersPerGroup  Int      @default(1)
+  maxChannelsPerGroup Int      @default(1)
+  groups              groups[]
+}
+
+model sessions {
+  id               String   @id
+  userId           String
+  refreshTokenHash String   @unique
+  expiresAt        DateTime
+  userAgent        String?
+  ipAddress        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime
+  users            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model channels {
+  id                String          @id
+  name              String
+  provider          ChannelProvider
+  providerChannelId String
+  groupId           String
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime
+  groups            groups          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  conversations     conversations[]
+
+  @@unique([provider, providerChannelId, groupId])
+}
+
+model conversations {
+  id            String             @id
+  status        ConversationStatus @default(OPEN)
+  lastMessageAt DateTime           @default(now())
+  groupId       String
+  channelId     String
+  customerId    String
+  assigneeId    String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime
+  users         User?              @relation(fields: [assigneeId], references: [id])
+  channels      channels           @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  customers     customers          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  groups        groups             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  messages      messages[]
+}
+
+model customers {
+  id            String          @id
+  fullName      String?
+  avatarUrl     String?
+  email         String?
+  phone         String?
+  groupId       String
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  conversations conversations[]
+  groups        groups          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  notes         notes[]
+  tags          tags[]          @relation("CustomerToTag")
+}
+
+model group_members {
+  id        String    @id
+  role      GroupRole @default(MEMBER)
+  userId    String
+  groupId   String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime
+  groups    groups    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  users     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, groupId])
+}
+
+model groups {
+  id            String          @id
+  name          String
+  slug          String          @unique
+  logoUrl       String?
+  planId        String
+  creatorId     String
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  channels      channels[]
+  conversations conversations[]
+  customers     customers[]
+  group_members group_members[]
+  users         User            @relation(fields: [creatorId], references: [id])
+  plans         plans           @relation(fields: [planId], references: [id])
+  invitations   invitations[]
+  tags          tags[]
+}
+
+model messages {
+  id                String           @id
+  content           String
+  direction         MessageDirection
+  externalMessageId String?          @unique
+  conversationId    String
+  createdAt         DateTime         @default(now())
+  conversations     conversations    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+model notes {
+  id         String    @id
+  content    String
+  customerId String
+  authorId   String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime
+  users      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  customers  customers @relation(fields: [customerId], references: [id], onDelete: Cascade)
+}
+
+model tags {
+  id        String      @id
   name      String
-  key       String   @unique
-  keyHash   String   @unique
-  
-  // Permissions and limits
-  permissions Json?
-  rateLimit   Int      @default(1000) // requests per hour
-  
-  // Status
-  isActive    Boolean  @default(true)
-  lastUsed    DateTime?
-  
-  // Timestamps
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  expiresAt   DateTime?
-  
-  // Relationships
-  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId         String
-  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  organizationId String?
-  
-  @@map("api_keys")
+  color     String
+  groupId   String
+  groups    groups      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  customers customers[] @relation("CustomerToTag")
+
+  @@unique([groupId, name])
 }
 
-// Enums
 enum Role {
-  ADMIN
   USER
-}
-
-enum OrganizationRole {
-  OWNER
   ADMIN
-  MEMBER
-  VIEWER
 }
 
 enum PlanType {
   FREE
-  BASIC
+  PLUS
   PRO
-  ENTERPRISE
 }
 
-enum SSOProvider {
-  GOOGLE
-  FACEBOOK  
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+enum ChannelProvider {
+  FACEBOOK
+  ZALO
+  INSTAGRAM
+  WEBSITE_LIVECHAT
+}
+
+enum ConversationStatus {
+  OPEN
+  CLOSED
+  PENDING
+}
+
+enum GroupRole {
+  ADMIN
+  MEMBER
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
 }

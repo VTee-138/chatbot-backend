@@ -3,6 +3,7 @@ const authRoutes = require('./auth');
 const organizationRoutes = require('./organizations');
 const apiKeyRoutes = require('./apiKeys');
 const { successResponse } = require('../utils/response');
+const zaloRouter = require('./zaloRouter');
 
 const router = express.Router();
 
@@ -61,5 +62,5 @@ router.get('/health', (req, res) => {
 router.use('/auth', authRoutes);
 router.use('/organizations', organizationRoutes);
 router.use('/api-keys', apiKeyRoutes);
-
+router.use('/zalo', zaloRouter)
 module.exports = router;

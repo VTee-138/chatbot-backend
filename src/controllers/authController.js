@@ -314,7 +314,7 @@ const resendVerifyEmail = catchAsync(async (req, res) =>{
   if (!EmailTypeList.includes(type)) return errorResponse(res, 'Invalid type params', 400)
   const { jwt } = req.body
   const subject = type == EmailType.FORGOT? '🚀 Link xác nhận quên mật khẩu đã tới!': '🚀 Link xác thực tài khoản đăng ký đã tới!'
-  const htmlContent = type == EmailType.Forgot? HtmlConverter.Forgot: HtmlConverter.Register
+  const htmlContent = type == EmailType.FORGOT? HtmlConverter.Forgot: HtmlConverter.Register
   /// HẠN CHẾ TRONG FORGOT VÀ REGISTER, NẾU CÓ CÓ THỂ MỞ RỘNG
   const { email } = decodePayload(jwt)
   // Handle DDos Mail Requests
