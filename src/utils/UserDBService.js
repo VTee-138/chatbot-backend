@@ -8,13 +8,13 @@ class UserDBModel{
         await prisma.user.update({where: {email: email}, data: updateData})
     }
     async updatePassword(email, newPassword){
-        await prisma.user.update({where: {email: email}, data: {hashPassword: newPassword, updatedAt: new Date()}})
+        await prisma.user.update({where: {email: email}, data: {passwordHash: newPassword, updatedAt: new Date()}})
     }
     async updatePasswordByID(id, newPassword){
         await prisma.user.update({
             where: { id: id },
             data: {
-                hashPassword: newPassword,
+                passwordHash: newPassword,
                 updatedAt: new Date(),
             },
         })
@@ -38,7 +38,7 @@ class UserDBModel{
                 firstName: userInput.given_name,
                 lastName: userInput.family_name,
                 email: 'sso:'+userInput.email, // Để phân biệt với user đăng ký tài khoản thường
-                hashPassword: "google_password", // hoặc null / hằng số
+                passwordHash: "google_password", // hoặc null / hằng số
                 },
             });
             console.log(user)
@@ -59,7 +59,7 @@ class UserDBModel{
             firstName: userInput.first_name,
             lastName: userInput.last_name,
             email: 'facebook_account', // cần get quyền để lấy được thông tin email hoặc phone đăng ký của người dùnge  
-            hashPassword: "facebook_account"
+            passwordHash: "facebook_account"
         }})
         await prisma.ssoAccount.create({
                 data: {
