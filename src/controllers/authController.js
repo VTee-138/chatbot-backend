@@ -101,13 +101,14 @@ const register = catchAsync(async (req, res) => {
  */
 const login = catchAsync(async (req, res) => {
   const { email, password } = req.body;
+  console.log(req.body);
   // Find user with password
   const user = await UserDBService.findUserByEmail(email)
   if (!user) {
     return errorResponse(res, 'Invalid email or password', 401);
   }
   // Verify password
-  const isPasswordValid = await comparePassword(password, user.hashPassword);
+  const isPasswordValid = await comparePassword(password, user.passwordHash);
   if (!isPasswordValid) {
     return errorResponse(res, 'Invalid email or password', 401);
   }

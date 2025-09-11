@@ -18,7 +18,7 @@ class verifyMailService{
         await redis.del(`shield:${email}`)
         const hash = await redis.get(`hash:${email}`)
         console.log(hash)
-        const payload = {hashPassword: hash, email: email}
+        const payload = {passwordHash: hash, email: email}
         await redis.del(`hash:${payload.email}`) // Dọn redis  ngay lập tức
         return payload
     }
