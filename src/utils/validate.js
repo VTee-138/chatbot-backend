@@ -1,6 +1,6 @@
 const redis = require("../config/redis")
 const { Constants } = require("./constant")
-const { errorResponse, successResponse } = require("./response")
+const { errorResponse, successResponse, catchAsync } = require("./response")
 /**
  * @description Để tránh người dùng request quá nhiều tới dịch vụ register hoặc forgot mặc
  * dù email xác nhận vẫn còn hiệu lực, bằng cách check xem liệu key của type có
@@ -12,11 +12,22 @@ const { errorResponse, successResponse } = require("./response")
  * @returns 
  */
 const redisValidate = (type) =>{
-    return async (res, req, next) => {
-        const key = req.body
-        const value = await redis.get(`${type}:${key.email}`)
-        if (value) return errorResponse(res, "Vui lòng kiểm tra mail xác nhận để kích hoạt tài khoản!", Constants.OK)
-        return next()
+    return async (req, res, next) => {
+        try {
+            const email = req.body?.email
+            if (!email) {
+                return errorResponse(res, "Thiếu email", 400)
+            }
+            const value = await redis.get(`${type}:${email}`)
+            if (value) return errorResponse( res, "Vui lòng kiểm tra mail xác nhận để kích hoạt tài khoản!", Constants.OK)
+            return next()
+        }
+        catch (err) {
+            console.error("Redis validate error:", err)
+            return errorResponse(res, "Có lỗi xảy ra", 500)
+        }
     }
 }
+
+const validateForgotAccount = catchAsync( )
 module.exports = {redisValidate}

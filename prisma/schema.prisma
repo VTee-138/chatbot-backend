@@ -19,7 +19,7 @@ model User {
   createdAt                 DateTime                    @default(now())
   updatedAt                 DateTime                    @updatedAt
   role                      Role                        @default(USER)
-  twoFactorBackupCodes      String[]
+  twoFactorBackupCodes      String[]                  // dùng khi mất quyền truy cập ứng dụng OTP
   twoFactorEnabled          Boolean                     @default(false)
   twoFactorSecret           String?
   email_verification_tokens email_verification_tokens[]
@@ -249,8 +249,8 @@ model sessions {
   userId           String
   refreshTokenHash String   @unique
   expiresAt        DateTime
-  userAgent        String?
-  ipAddress        String?
+  userAgent        String?     // Tên thiết bị người sử dụng
+  ipAddress        String?     // ip thiết bị người sử dụng
   createdAt        DateTime @default(now())
   updatedAt        DateTime
   users            User     @relation(fields: [userId], references: [id], onDelete: Cascade)

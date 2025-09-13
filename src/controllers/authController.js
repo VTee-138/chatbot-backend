@@ -13,6 +13,9 @@ const { facebookVerifyLogin } = require('../utils/facebookService');
 const { ResetForgotPasswordSchema } = require('../utils/schema');
 const { sessionLoginRotation } = require('../utils/sessionUtils');
 const { Constants } = require('../utils/constant');
+const authService = require('../services/authService');
+const { redisValidate } = require('../utils/validate');
+const config = require('../config');
 
 /**
  * Verify Email Sent
@@ -45,49 +48,21 @@ const register = catchAsync(async (req, res) => {
   if (existingUser && existingUser.emailVerifiedAt) {
     return errorResponse(res, 'User with this email already exists', 409);
   }
+
   // Hash password
   const hashedPassword = await hashPassword(password);
   const newUser = {
-    fullName: userInformation.userName ?? null,
     email: userInformation.email,
-    passwordHash: hashedPassword.valueOf(),
-    phoneNumber: userInformation.phoneNumber ?? null
+    passwordHash: hashedPassword.valueOf()
   }
+  // Generate token
   await userCredentialModel.registerNewUser(newUser)
-  const validateToken = generateToken({email: userInformation.email, fullName: userInformation.userName}, 'validate')
+  const shield = createShield(14)
+  const validateToken = generateToken({email, shield}, 'validate')
   await redis.set(`register:${email}`, validateToken, 'EX', 60*60)
-  await sendEmailToVerify(EmailType.REGISTER, process.env.MAIL_PUBLIC, validateToken, email, '🚀 Link xác thực tài khoản đăng ký đã tới!', HtmlConverter.Forgot)
-  // // Create user
-  // const user = await prisma.user.create({
-  //   data: {
-  //     email: email,
-  //     password: hashedPassword.valueOf(),
-  //   },
-  //   select: {
-  //     id: true,
-  //     email: true,
-  //     firstName: true,
-  //     lastName: true,
-  //     role: true,
-  //     createdAt: true,
-  //   },
-  // });
-  
-  // Generate tokens
-  // const tokens = generateToken(user);
-  
-  // // Create session
-  // await prisma.session.create({
-  //   data: {
-  //     sessionToken: tokens.accessToken,
-  //     refreshToken: tokens.refreshToken,
-  //     userId: user.id,
-  //     userAgent: req.headers['user-agent'],
-  //     ipAddress: req.ip,
-  //     expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
-  //   },
-  // });
-  
+
+  // Send email to verify
+  sendEmailToVerify(EmailType.REGISTER, process.env.URL_MAIL_PUBLIC, validateToken, email, '🚀 Link xác thực tài khoản đăng ký đã tới!', HtmlConverter.Forgot)
   return successResponse(res, 'Đã đăng ký tài khoản thành công! Hãy vào email để xác thực tài khoản của bạn', 200);
 });
 
@@ -98,19 +73,23 @@ const register = catchAsync(async (req, res) => {
  * - Người dùng đã log out => mất session db, nên phải login lại từ đầu
  */
 const login = catchAsync(async (req, res) => {
+  // GET FIELD
   const { email, password } = req.body;
+
   // Find user with password
   const user = await userCredentialModel.findUserByEmail(email)
   if (!user || !user.emailVerifiedAt) {
     return errorResponse(res, 'Tài khoản hoặc mật không hợp lệ', Constants.BAD_REQUEST);
   }
+
   // Verify password
   const isPasswordValid = await comparePassword(password, user.passwordHash);
   if (!isPasswordValid) {
     return errorResponse(res, 'Mật khẩu của bạn không chính xác', Constants.BAD_REQUEST);
   }
-  // Payload neccessary needed to send over to client
+
   // Generate tokens
+  // Payload neccessary needed to send over to client
   const clientPayload = { 
     id: user.id,
     email: user.email,
@@ -118,6 +97,8 @@ const login = catchAsync(async (req, res) => {
     role: user.role
    }
   const tokens = generateTokenPair(clientPayload);
+  
+  // Set httpOnly cookies
   httpOnlyResponse(res, "refreshToken", tokens.refreshToken, 7*24*60*60*1000)
   httpOnlyResponse(res, "clientInformation", JSON.stringify(clientPayload), 7*24*60*60*1000)
   
@@ -126,18 +107,21 @@ const login = catchAsync(async (req, res) => {
   }, 'Login successfully!');
 });
 /**
- * Refresh access token, xác thực refresh token thông qua req.session, vì đã lưu
+ * @description Refresh access token, xác thực refresh token thông qua req.session, vì đã lưu
  * thông tin của nó trong session khi tạo tài khoản ban đầu
  * Khi người dùng thoát khỏi browser mà vào lại, thì client sẽ gọi đến đây
  * Request đến đây sẽ check client request httpOnly Cookie, xem liệu người dùng này có tồn tại trong session hay không
- * Có 2 case mà người dùng sẽ gọi đến controller này:
- * +, Hết hạn access token được lưu trong memory client, nhưng vẫn còn hạn refresh token 
- * +, Persistent logging khi người dùng đăng nhập mà thoát browser, khi quay lại dù access_token hết hạn nhưng vẫn tồn tại session => pass
+ * 
+ * @cases Có 2 case mà người dùng sẽ gọi đến controller này:
+ * - Hết hạn access token được lưu trong memory client, nhưng vẫn còn hạn refresh token 
+ * - Persistent logging khi người dùng đăng nhập mà thoát browser, khi quay lại dù access_token hết hạn nhưng vẫn tồn tại session => pass
  */
 const refreshToken = catchAsync(async (req, res) => {
-  // Sẽ setup thêm cả access token để check
+  // Get user's cookies
   const cookieRefreshToken = req.cookies.refreshToken
   const cookieUserInformation = JSON.parse(req.cookies.clientInformation)
+
+  // Check khả nghi
   if (!cookieRefreshToken) {
     // revoke key ngay khi thấy dấu hiệu
     httpOnlyRevoke(res, "refreshToken")
@@ -145,14 +129,15 @@ const refreshToken = catchAsync(async (req, res) => {
   }
 T
   try {
+    // Check trong Redis xem có còn hạn hay không
     const key = await redis.get(`refresh:${cookieUserInformation.id}`)
     const checker = await comparePassword(cookieRefreshToken, key)
-
     if (!checker) {
       httpOnlyRevoke(res, "refreshToken")
       return errorResponse(res, 'Invalid refresh token', 401);
     }
-    // Sinh token mới
+
+    // Sinh token mới nếu thỏa mãn điều kiện
     const tokens = generateTokenPair(
       {
         id: cookieUserInformation.id, 
@@ -160,9 +145,11 @@ T
         fullName: cookieUserInformation.fullName, 
         role: cookieUserInformation.role
       }); 
+
     // Hash lại refresh token
     const hashToken = await hashPassword(tokens.refreshToken)
     await redis.set(`refresh:${cookieUserInformation.id}`, hashToken.valueOf(), 'EX', 7*24*60*60)
+
     // Cập nhật refresh token mới vào cookie
     httpOnlyResponse(res, "refreshToken", tokens.refreshToken, 7*24*60*60*1000)
     httpOnlyResponse(res, 
@@ -190,15 +177,18 @@ T
 const forgot = catchAsync( async(req, res) =>{
   const { email } = req.body
   try {
-    const result = await userCredentialModel.findUserByEmail(email)
-    if (!result) return errorResponse(res, "Tài khoản này không hợp lệ hoặc chưa được tạo", Constants.OK) 
+    // Verify có phải là một tài khoản Credential chính thức không
+    await authService.validateForgotAccount(email)
+    // Tạo token
     const shield = createShield(14)
-    await redis.set(`shield:${email}`, shield, 'EX', 30*60)
     const token = generateToken({email, shield}, 'validate')
-    await sendEmailToVerify(EmailType.FORGOT, process.env.MAIL_PUBLIC, token, email, '🚀 Link xác nhận quên mật khẩu đã tới!', HtmlConverter.Forgot)
+    await redis.set(`forgot:${email}`, token, 'EX', 30*60)
+    // Send email
+    await sendEmailToVerify(EmailType.FORGOT, process.env.URL_MAIL_PUBLIC, token, email, '🚀 Link xác nhận quên mật khẩu đã tới!', HtmlConverter.Forgot)
     return successResponse(res, 'Đã xác nhận yêu cầu thay đổi mật khẩu mới thành công! Vui lòng xác nhận yêu cầu trong email của bạn!', 200)
   } catch (error) {
-    return errorResponse(res, 'Lỗi Server', 500)
+    console.error("Forgot password error:", error)
+    return errorResponse(res, error.message || 'Lỗi Server', error.status || 500)
   }
 })
 /**
@@ -295,29 +285,29 @@ const changePassword = catchAsync(async (req, res) => {
   const hashedNewPassword = await hashPassword(newPassword);
   // Update password
   await userCredentialModel.updatePasswordByID(req.user.id, hashedNewPassword)
-  // // Deactivate all sessions except current one
-  // const authHeader = req.headers.authorization;
-  // const currentToken = authHeader ? authHeader.substring(7) : null;
   return successResponse(res, null, 'Password changed successfully');
 });
+
 const resendVerifyEmail = catchAsync(async (req, res) =>{
-  const {type} = req.params
-  if (!EmailTypeList.includes(type)) return errorResponse(res, 'Invalid type params', 400)
+  // GET FIELDS
+  const { type } = req.params
   const { jwt } = req.body
+  if (!EmailTypeList.includes(type)) return errorResponse(res, 'Invalid type params', 400)
+
+  // SET CONTENT TO SEND MAIL
   const subject = type == EmailType.FORGOT? '🚀 Link xác nhận quên mật khẩu đã tới!': '🚀 Link xác thực tài khoản đăng ký đã tới!'
   const htmlContent = type == EmailType.FORGOT? HtmlConverter.Forgot: HtmlConverter.Register
-  /// HẠN CHẾ TRONG FORGOT VÀ REGISTER, NẾU CÓ CÓ THỂ MỞ RỘNG
+  
   const { email } = decodePayload(jwt)
-  // Handle DDos Mail Requests
+
   const shieldChecker = await redis.get(`shield:${email}`)
   if (shieldChecker) return errorResponse(res, "Too Many Requests", 429)
   const newShieldId =  createShield(16)
   await redis.del(`shield:${email}`)
   await redis.set(`shield:${email}`, newShieldId,'EX',40)
-  console.log('NEW SHIELD: ', newShieldId)
   const newToken = generateToken( {email,shield: newShieldId},'validate')
   // Send Email
-  await sendEmailToVerify(type, "chatbot-fe.aipencil.name.vn", newToken, email, subject, htmlContent)
+  await sendEmailToVerify(type, config.URL_MAIL_PUBLIC, newToken, email, subject, htmlContent)
   return successResponse(res, 'Đã nhận được yêu cầu của bạn, vui lòng xác nhận trong email!', 200)
   //... Để dành nếu còn nữa
   
@@ -329,56 +319,50 @@ const resetPassword = catchAsync( async (req, res) => {
   await userCredentialModel.updatePassword(email, newPassword)
   return successResponse(res, 'Successful', 200)
 })
-const loginSSO = catchAsync( async (req, res) => {
-  
-})
-// GOOGLE SSO LOGIN
-const googleSSOLogin = async (req, res ) =>{
-  const { idToken } = req.body
-        if (!idToken) return errorResponse(res, "INVALID PARAMS REQUEST", 400)
-    try {
-        const { email, name, sub, given_name, family_name} = await verifyGoogleIdToken(idToken)
-        const userInput = { email, name, given_name, family_name }
-        const {password, createdAt, lastLogin, updatedAt, avatar, ...ssoUser} = await userCredentialModel.ssoLoginChecker('google', sub, userInput)
-        console.log("SSO FROM DB: ", ssoUser)
-        const tokens = generateTokenPair(ssoUser) 
-        const sessionData = {
-          user: ssoUser,
-          refreshToken: tokens.refreshToken
-        }
-        await sessionLoginRotation(req, sessionData)
-        return successResponse(res, {
-          user: ssoUser,
-          accessToken: tokens.accessToken,
-        }, 'Login successfully!');
-    } catch (error) {
-        console.error("Error Google Login: ", error.message)
-        return errorResponse(res, 'Lỗi Server', 500)
-    }
-}
-// Facebook SSO LOGIN
-const facebookSSOLogin = async (req, res) =>{
-  const { accessToken } = req.body
-  if (!accessToken) return errorResponse(res, 'Facebook access token is required.',400)
+const openSession = catchAsync (async (req, res) => {
+
+}) 
+const createSSO = catchAsync (async (req, res) => {
+  // Get Fields
+  const { provider } = req.params.provider
+  const userInput = req.body
+  const sub = req.cookies.sub
   try {
-    const payload = await facebookVerifyLogin(accessToken)
-    const { password, createdAt, lastLogin,updatedAt, avatar, ...ssoUser} = await userCredentialModel.ssoLoginChecker('facebook', payload.id, payload)
-    const tokens = generateTokenPair(ssoUser)
-    console.log("SSO FROM DB: ", ssoUser)
-    const sessionData = {
-      user: ssoUser,
-      refreshToken: tokens.refreshToken
-    }
-    await sessionLoginRotation(req, sessionData)
-    return successResponse(res, {
-          user: ssoUser,
-          accessToken: tokens.accessToken,
-        }, 'Login successfully!');
+    // Update SSO Account 
+    await userCredentialModel.updateSSOAccount(provider, sub, userInput)
+    return successResponse(res, "Successful")
   } catch (error) {
-    console.error("Lỗi Facebook: ", error) 
-    return errorResponse(res, 'Lỗi: ' + error.message, 400)
+    throw error
   }
-}
+})
+const loginSSO = catchAsync( async (req, res) => {
+  const { provider } = req.params
+  const { accessToken } = req.body
+  try {
+    if (!accessToken) return errorResponse(res, "Yêu cầu không hợp lệ!", Constants.BAD_REQUEST)
+    if (!provider || !['google', 'facebook'].includes(provider))
+      return errorResponse(res, "Phương thức đăng nhập không được hỗ trợ. Vui lòng sử dụng Google hoặc Facebook", Constants.BAD_REQUEST)
+    
+    // Verify SSO Account
+    let user = null
+    if (provider == 'google') user = await authService.googleSSOLogin(accessToken)
+    else user = await authService.facebookSSOLogin(accessToken)
+
+    // Handle Verified Account
+    const checker = await userCredentialModel.findSSOUser(provider, user.sub)
+    if (checker && checker.emailVerifiedAt) return openSession(req, res)
+    else {
+    
+      // store at httpOnly sub user id (biến thành session cookie)
+    httpOnlyResponse(res, "sub", user.sub, undefined)
+    return successResponse(res, {
+      fullName: user.fullName
+    }, "Thành công! Cần thêm thông tin để tạo lập tài khoản SSO")}
+    
+  } catch (error) {
+    return errorResponse(res, "Lỗi server", Constants.INTERNAL_SERVER_ERROR)
+  }
+})
 module.exports = {
   register,
   login,
@@ -390,9 +374,9 @@ module.exports = {
   forgot,
   verifyMail,
   resendVerifyEmail,
-  googleSSOLogin,
-  facebookSSOLogin,
-  resetPassword
+  resetPassword,
+  createSSO,
+  loginSSO
 };
 
 

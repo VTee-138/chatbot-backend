@@ -9,6 +9,13 @@ class UserDBModel{
             data: {emailVerifiedAt: new Date()}
         })
     }
+    async is2FAEnabled(email){
+        const enabled = await prisma.user.findFirst({
+            where: { email },
+            select: { twoFactorEnabled: true}
+        })
+        return Boolean(enabled.twoFactorEnabled)
+    }
     async updatePersonalInformation(){
         const {email, ...updateData} = user
         return await prisma.user.update({where: {email: email}, data: updateData})
@@ -31,72 +38,58 @@ class UserDBModel{
     async findUserByEmail(email){
         return await prisma.user.findUnique({where: {email}})
     }
-    async createGoogleSSO(provider, providerId, userInput){
-        let user = await prisma.user.findUnique({
-            where: { email: 'sso:'+ userInput.email },
-        });
-
-        if (!user) {
-            user = await prisma.user.create({
-                data: {
-                firstName: userInput.given_name,
-                lastName: userInput.family_name,
-                email: 'sso:'+userInput.email, // Để phân biệt với user đăng ký tài khoản thường
-                passwordHash: "google_password", // hoặc null / hằng số
-                },
-            });
-        }
-        await prisma.ssoAccount.create({
-        data: {
-            provider,
-            providerId,
-            userId: user.id,
-        },
-        });
-        return user;
-
+    async isSSOAccount(id){
+        return await prisma.ssoAccount.findFirst({where: { userId: id }, select: { provider: true }})
     }
-    async createFacebookSSO(provider, providerId, userInput){
-        const user = await prisma.user.create({
-        data: {
-            firstName: userInput.first_name,
-            lastName: userInput.last_name,
-            email: 'facebook_account', // cần get quyền để lấy được thông tin email hoặc phone đăng ký của người dùnge  
-            passwordHash: "facebook_account"
-        }})
-        await prisma.ssoAccount.create({
-                data: {
-                    provider: provider,
-                    providerId: providerId,
-                    userId: user.id
-                }
-            })
-        return user
+    async findUserById(id){
+        return await prisma.user.findUnique({where: {id}})
     }
-    async ssoLoginChecker(provider, providerId, userPayload) {
-        let ssoAccount = await prisma.ssoAccount.findUnique({
-            where: {
-                provider_providerId: { provider, providerId },
-            },
-        });
-        if (!ssoAccount) {
-            if (provider === "google") {
-            ssoAccount = await this.createGoogleSSO(provider, providerId, userPayload);
-            } else if (provider === "facebook") {
-            ssoAccount = await this.createFacebookSSO(provider, providerId, userPayload);
-            } else {
-            throw new Error(`Unsupported provider: ${provider}`);
+    async findSSOUser(provider, providerId){
+        const ssoUser = await prisma.ssoAccount.findFirst({
+            where: { provider, providerId},
+            select: { userId : true }
+        })
+        if (!ssoUser) return null
+        return await this.findUserById(ssoUser.userId)
+    }
+    async updateSSOAccount(provider, providerId, userInput) {
+        const user = this.findSSOUser(provider, providerId)
+        if (!user) return null
+        return await prisma.user.update({
+            where: { id : user.id},
+            data: {
+                fullName: userInput.fullName,
+                phoneNumber: userInput.phoneNumber
             }
-            return ssoAccount
-        }
-
-        // Lấy User tương ứng với SSO
-        const user = await prisma.user.findUnique({
-            where: { id: ssoAccount.userId },
-        });
-        return user
+        })
     }
+    async createSSOAccount(provider, providerId, userInput){
+        const newUser = await prisma.user.create({
+            data: { 
+                fullName: userInput.fullName,
+                email: provider=='google'? userInput.email: `${providerId}@facebook.com`,   
+            }   
+        })
+        return await prisma.ssoAccount.create({
+            data: {
+                provider,
+                providerUserId: providerId,
+                userId: newUser.id
+            }
+        })
+    }
+    async createNewDeviceSession(userId, ipAddress, userAgent ){
 
+    }
+    async updateTokenSession(userId, refreshTokenHash){ 
+        // return await prisma.sessions.upsert({
+        //     where: { userId }
+        //     update: {
+        //         updatedAt : new Date()
+        //     }
+        //     create
+        // })
+    }
     async deleteUserById(id){
         await prisma.user.delete({where: {id}})
     }
@@ -107,6 +100,5 @@ class UserDBModel{
         await this.deleteUserById(oldSSO.userId)
         await prisma.ssoAccount.update({where: {provider, providerId}, data: {userId: userId}})
     }
-    // async overrideSSOLinkingHandle(provider, providerId) Khi người dùng muốn liên kết tài khoản với một tài khoản FB (Mà tài khoản FB đã tồn tại với một acc khác => Muốn override hay không)
-}
+ }
 module.exports = new UserDBModel()

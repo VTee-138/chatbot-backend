@@ -66,6 +66,13 @@ const RegisterNewUserSchema = Joi.object({
     .messages({
         "string.pattern.base" : "Password phải có ít nhất 8 kí tự, gồm cả chữ và số"
     }),
+    fullName: Joi.string()
+    .min(2)
+    .max(40)
+    .required()
+    .messages({
+      "string.pattern.base": "Số điện thoại phải gồm đúng 10 chữ số",
+    }),
     phoneNumber: Joi.string()
     .pattern(/^\d{10}$/) // đúng 10 số
     .messages({
@@ -79,6 +86,21 @@ const RegisterNewUserSchema = Joi.object({
       "any.only": "Mật khẩu xác nhận không khớp",
       "any.required": "Vui lòng nhập mật khẩu xác nhận"
     }),
+})
+const RegisterSSOSchema = Joi.object({
+    fullName: Joi.string()
+    .min(2)
+    .max(40)
+    .required()
+    .messages({
+      "string.pattern.base": "Số điện thoại phải gồm đúng 10 chữ số",
+    }),
+    phoneNumber: Joi.string()
+    .pattern(/^\d{10}$/) // đúng 10 số
+    .required()
+    .messages({
+      "string.pattern.base": "Số điện thoại phải gồm đúng 10 chữ số",
+    })
 })
 const EmailSchema = Joi.object({
   email: Joi.string()
@@ -103,4 +125,4 @@ const LoginSchema = Joi.object({
   }) 
   
 })
-module.exports = { LoginSchema,RegisterNewUserSchema, ResetForgotPasswordSchema, ResetPasswordSchema, EmailSchema}
+module.exports = { RegisterSSOSchema, LoginSchema,RegisterNewUserSchema, ResetForgotPasswordSchema, ResetPasswordSchema, EmailSchema}

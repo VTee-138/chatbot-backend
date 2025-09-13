@@ -40,6 +40,7 @@ const httpOnlyRevoke = (res, tag) => {
     sameSite: 'strict'
   })
 }
+
 /**
  * Error response helper
  * @param {Object} res - Express response object
@@ -92,9 +93,9 @@ const paginatedResponse = (res, data, total, page, limit, message = 'Success') =
       hasPrev,
     },
   };
-  
   return res.status(200).json(response);
 };
+
 
 /**
  * Validation error response helper
@@ -104,6 +105,7 @@ const paginatedResponse = (res, data, total, page, limit, message = 'Success') =
 const validationErrorResponse = (res, errors) => {
   return errorResponse(res, 'Validation failed', 400, errors);
 };
+
 
 /**
  * Catch async errors wrapper

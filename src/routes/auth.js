@@ -12,7 +12,9 @@ const {
   resendVerifyEmail,
   googleSSOLogin,
   facebookSSOLogin,
-  resetPassword
+  resetPassword,
+  createSSO,
+  loginSSO
 } = require('../controllers/authController');
 const { authenticate, isAccountForgotExists, authLimiter } = require('../middleware/auth');
 const schemaValidate = require('../utils/schemaValidate');
@@ -57,8 +59,8 @@ const authRouter = express.Router();
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-authRouter.post('/register', authLimiter, redisValidate('register'), schemaValidate(RegisterNewUserSchema, "body"), register);
-
+authRouter.post('/register', authLimiter, redisValidate('register'), schemaValidate(EmailSchema, "body"), register);
+authRouter.post('/register/extra', authLimiter, )
 /**
  * @swagger
  * /auth/login:
@@ -320,11 +322,11 @@ authRouter.post('/change-password', authenticate, schemaValidate(ResetPasswordSc
 authRouter.post('/forgot',  schemaValidate(EmailSchema, "body"), redisValidate('forgot'), forgot)
 authRouter.post('/reset-password',schemaValidate(ResetForgotPasswordSchema, 'validate'), resetPassword)
 authRouter.post('/verify-email', verifyMail) // sẽ gửi jwt chứa các loại thông tin đến, tùy vào type sẽ validate thông tin của người dùng
-authRouter.post('/google/checkpoint', googleSSOLogin)
-authRouter.post('/facebook/checkpoint', facebookSSOLogin)
-authRouter.post('/sso/:provider/callback')
+authRouter.post('/sso/:provider', loginSSO)
+authRouter.post('/sso/:provider/create', schemaValidate(RegisterNewUserSchema, "body"), createSSO)
 authRouter.post('/me')
-
-// router.post('/facebook/callback', )
+authRouter.post('/resend/:type', redisValidate((req) => req.params.type), resendVerifyEmail)
+authRouter.post('/logout-all')
+// router.post('/facebook/callback', 
 
 module.exports = authRouter;
