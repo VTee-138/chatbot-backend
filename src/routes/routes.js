@@ -1,9 +1,10 @@
-const express = require('express');
-const authRoutes = require('./auth');
+const express = require('express')
+utes = require('./auth');
 const organizationRoutes = require('./organizations');
 const apiKeyRoutes = require('./apiKeys');
 const { successResponse } = require('../utils/response');
 const zaloRouter = require('./zaloRouter');
+const authRouter = require('./auth');
 
 const router = express.Router();
 
@@ -59,7 +60,7 @@ router.get('/health', (req, res) => {
 });
 
 // API routes
-router.use('/auth', authRoutes);
+router.use('/auth', authRouter);
 router.use('/organizations', organizationRoutes);
 router.use('/api-keys', apiKeyRoutes);
 router.use('/zalo', zaloRouter)

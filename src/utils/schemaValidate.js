@@ -20,7 +20,6 @@ const isError = (error, next) => {
  * router.get('/register', schemaValidate(registerNewUserSchema, 'body'), register )
 */
 const schemaValidate = (schema, type) => {
-
     return (req, res, next) => {
         if (type === 'params') {
             //abortEarly false to collect all validation errors

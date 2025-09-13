@@ -10,7 +10,7 @@
  * //Send link forgot
  * linkVerifyingToSend('abc', EmailType.FORGOT, 'chatgpt.com') => "https://chatgpt.com=/forgot/auth/abc"
  */
-const linkVerifyingToSend = (code, type, domain) => `Link xác thực của bạn là: https://${domain}/${type}/auth/${code}`
+const linkVerifyingToSend = (code, type, domain) => `Link xác thực của bạn là: https://${domain}/${type}/auth/code=${code}`
 
 // HTML DESIGN
 // Lưu ý những file HTML chỉ nên có mỗi 

@@ -18,6 +18,29 @@ const successResponse = (res, data = null, message = 'Success', statusCode = 200
 };
 
 /**
+ * httpOnly response helper
+ * @param {Object} res - Express response object
+ * @param {Any} tag - tag want to store in client 
+ * @param {Any} data - data stored in tag
+ * @param {String} expiresInMs - 60000 ms ~~ 1 minute, time to expire
+ * @param {Number} statusCode - HTTP status code
+ */
+const httpOnlyResponse = (res, tag, data = null, expiresInMs= 60*1000) =>{ 
+  res.cookie(tag, data, { 
+    httpOnly: true,  
+    maxAge: expiresInMs,
+    secure: config.NODE_ENV === 'production',
+    sameSite: 'strict'
+  })
+}
+const httpOnlyRevoke = (res, tag) => {
+  res.clearCookie(tag, {
+    httpOnly: true,  
+    secure: config.NODE_ENV === 'production',
+    sameSite: 'strict'
+  })
+}
+/**
  * Error response helper
  * @param {Object} res - Express response object
  * @param {String} message - Error message
@@ -99,4 +122,6 @@ module.exports = {
   paginatedResponse,
   validationErrorResponse,
   catchAsync,
+  httpOnlyResponse,
+  httpOnlyRevoke
 };

@@ -1,5 +1,5 @@
 const { verifyToken } = require('../utils/jwt');
-const { errorResponse } = require('../utils/response');
+const { errorResponse, httpOnlyRevoke } = require('../utils/response');
 const prisma = require('../config/database');
 const redis = require('../config/redis');
 
@@ -13,22 +13,25 @@ const authenticate = async (req, res, next) => {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return errorResponse(res, 'Access token is required', 401);
     }
-    
+    if (!req.cookies.clientInformation) {
+      httpOnlyRevoke(res, "refreshToken")
+      httpOnlyRevoke(res, "clientInformation")
+      return errorResponse(res, 'Missing client information', 401);
+    }
     const token = authHeader.substring(7);
     try {
       const decoded = verifyToken(token, 'access');
-      const userIdChecker = await redis.get(`sess:${req.session.id}`)
-      const sessionData = JSON.parse(userIdChecker)
-      console.log(sessionData.user.id)
-      if (sessionData.user.id !== decoded.id)
+      const clientInformation = JSON.parse(req.cookies.clientInformation)
+      if (clientInformation.id !== decoded.id)
       return errorResponse(res, 'This user not available', 401);
-      req.user = sessionData;
       next();
-    } catch (jwtError) {
+    } 
+    catch (jwtError) {
       console.error("ERROR JWT MIDDLEWARE: ", jwtError.message)
       return errorResponse(res, 'Invalid or expired token', 401); 
     }
-  } catch (error) {
+  } 
+  catch (error) {
     console.error('Authentication error:', error);
     return errorResponse(res, 'Authentication failed', 500);
   }
@@ -189,12 +192,38 @@ const requireOrganizationMember = (roles = []) => {
       return errorResponse(res, 'Organization access check failed', 500);
     }
   };
-};
+}
+  const generalLimiter = async (req, res, next) => {
+    try {
+        await rateLimiterGeneral.consume(req.ip)
+        next()
+    } catch (error) {
+        res.status(429).json({
+            message: 'Too Many Requests',
+            retryAfter: Math.round(error.msBeforeNext / 1000)
+        });
+    }
+}
+const authLimiter = async (req, res, next) => {
+    try {
+        await rateLimiterAuth.consume(req.ip)
+        next();
+    }
+    catch (rejRes) {
+        res.status(429).json({
+            message: 'Too Many Login/Register Attempts',
+            retryAfter: Math.round(rejRes.msBeforeNext / 1000)
+        });
+    }
+}
+
 
 module.exports = {
   authenticate,
   authorize,
   authenticateApiKey,
   requireOrganizationMember,
-  isAccountForgotExists
+  isAccountForgotExists,
+  generalLimiter,
+  authLimiter
 };

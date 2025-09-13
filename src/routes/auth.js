@@ -14,10 +14,11 @@ const {
   facebookSSOLogin,
   resetPassword
 } = require('../controllers/authController');
-const { authenticate, isAccountForgotExists } = require('../middleware/auth');
+const { authenticate, isAccountForgotExists, authLimiter } = require('../middleware/auth');
 const schemaValidate = require('../utils/schemaValidate');
-const { ResetPasswordSchema, RegisterNewUserSchema, ResetForgotPasswordSchema } = require('../utils/schema')
-const router = express.Router();
+const { ResetPasswordSchema, RegisterNewUserSchema, ResetForgotPasswordSchema, EmailSchema, LoginSchema } = require('../utils/schema');
+const { redisValidate } = require('../utils/validate');
+const authRouter = express.Router();
 
 /**
  * @swagger
@@ -56,7 +57,7 @@ const router = express.Router();
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/register', schemaValidate(RegisterNewUserSchema, "body"), register);
+authRouter.post('/register', authLimiter, redisValidate('register'), schemaValidate(RegisterNewUserSchema, "body"), register);
 
 /**
  * @swagger
@@ -70,7 +71,7 @@ router.post('/register', schemaValidate(RegisterNewUserSchema, "body"), register
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/LoginRequest'
+ *             $ref: '#/components/schema /LoginRequest'
  *           examples:
  *             admin:
  *               summary: Admin account
@@ -96,7 +97,7 @@ router.post('/register', schemaValidate(RegisterNewUserSchema, "body"), register
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/login', login);
+authRouter.post('/login', schemaValidate(LoginSchema, "body"), login);
 
 /**
  * @swagger
@@ -131,7 +132,7 @@ router.post('/login', login);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/refresh-token', refreshToken);
+authRouter.post('/refresh', refreshToken);
 
 /**
  * @swagger
@@ -156,7 +157,7 @@ router.post('/refresh-token', refreshToken);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/logout', authenticate, logout);
+authRouter.post('/logout', authenticate, logout);
 
 /**
  * @swagger
@@ -213,7 +214,7 @@ router.post('/logout', authenticate, logout);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get('/profile', authenticate, getProfile);
+authRouter.get('/profile', authenticate, getProfile);
 
 /**
  * @swagger
@@ -261,7 +262,7 @@ router.get('/profile', authenticate, getProfile);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.put('/profile', authenticate, updateProfile);
+authRouter.put('/profile', authenticate, updateProfile);
 
 /**
  * @swagger
@@ -315,13 +316,15 @@ router.put('/profile', authenticate, updateProfile);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/change-password', authenticate, schemaValidate(ResetPasswordSchema, "body"), changePassword);
-router.post('/forgot', isAccountForgotExists, forgot)
-router.post('/reset-password',schemaValidate(ResetForgotPasswordSchema, 'validate'), resetPassword)
-router.post('/verify/:type', verifyMail) // sẽ gửi jwt chứa các loại thông tin đến, tùy vào type sẽ validate thông tin của người dùng
-router.post('/resend/:type', resendVerifyEmail)
-router.post('/google/checkpoint', googleSSOLogin)
-router.post('/facebook/checkpoint', facebookSSOLogin)
+authRouter.post('/change-password', authenticate, schemaValidate(ResetPasswordSchema, "body"), changePassword);
+authRouter.post('/forgot',  schemaValidate(EmailSchema, "body"), redisValidate('forgot'), forgot)
+authRouter.post('/reset-password',schemaValidate(ResetForgotPasswordSchema, 'validate'), resetPassword)
+authRouter.post('/verify-email', verifyMail) // sẽ gửi jwt chứa các loại thông tin đến, tùy vào type sẽ validate thông tin của người dùng
+authRouter.post('/google/checkpoint', googleSSOLogin)
+authRouter.post('/facebook/checkpoint', facebookSSOLogin)
+authRouter.post('/sso/:provider/callback')
+authRouter.post('/me')
+
 // router.post('/facebook/callback', )
 
-module.exports = router;
+module.exports = authRouter;

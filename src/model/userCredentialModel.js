@@ -1,11 +1,17 @@
 const prisma = require('../config/database')
 class UserDBModel{
     async registerNewUser(user){
-        await prisma.user.create({data: user})
+        return await prisma.user.create({data: user})
+    }
+    async updateVerifiedByEmail(email){
+        return await prisma.user.update({
+            where: {email: email},
+            data: {emailVerifiedAt: new Date()}
+        })
     }
     async updatePersonalInformation(){
         const {email, ...updateData} = user
-        await prisma.user.update({where: {email: email}, data: updateData})
+        return await prisma.user.update({where: {email: email}, data: updateData})
     }
     async updatePassword(email, newPassword){
         await prisma.user.update({where: {email: email}, data: {passwordHash: newPassword, updatedAt: new Date()}})
@@ -23,9 +29,7 @@ class UserDBModel{
         await prisma.user.update({where: {id}, data:{lastLogin: new Date()}}) // Update LastLogin tại ngay thời điểm đó
     }
     async findUserByEmail(email){
-        const user = await prisma.user.findUnique({where: {email}})
-        console.log('✅ Tìm thấy user: ', user)
-        return user
+        return await prisma.user.findUnique({where: {email}})
     }
     async createGoogleSSO(provider, providerId, userInput){
         let user = await prisma.user.findUnique({
@@ -41,7 +45,6 @@ class UserDBModel{
                 passwordHash: "google_password", // hoặc null / hằng số
                 },
             });
-            console.log(user)
         }
         await prisma.ssoAccount.create({
         data: {
@@ -76,8 +79,6 @@ class UserDBModel{
                 provider_providerId: { provider, providerId },
             },
         });
-
-        console.log(ssoAccount)
         if (!ssoAccount) {
             if (provider === "google") {
             ssoAccount = await this.createGoogleSSO(provider, providerId, userPayload);
@@ -106,7 +107,6 @@ class UserDBModel{
         await this.deleteUserById(oldSSO.userId)
         await prisma.ssoAccount.update({where: {provider, providerId}, data: {userId: userId}})
     }
-
     // async overrideSSOLinkingHandle(provider, providerId) Khi người dùng muốn liên kết tài khoản với một tài khoản FB (Mà tài khoản FB đã tồn tại với một acc khác => Muốn override hay không)
 }
 module.exports = new UserDBModel()
