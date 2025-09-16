@@ -10,16 +10,22 @@ const {
   forgot,
   verifyMail,
   resendVerifyEmail,
-  googleSSOLogin,
-  facebookSSOLogin,
   resetPassword,
   createSSO,
-  loginSSO
+  loginSSO,
+  checkEmailExists,
+  checkSession,
+  removeAllDevices,
+  twoFactorVerify,
+  twoFactorBackupCodeVerify,
+  twoFactorBackupCodeRegenerate,
+  reAuthenticate
 } = require('../controllers/authController');
-const { authenticate, isAccountForgotExists, authLimiter } = require('../middleware/auth');
+const { authenticate, isAccountForgotExists, authLimiter, authenticate2FA } = require('../middleware/auth');
 const schemaValidate = require('../utils/schemaValidate');
-const { ResetPasswordSchema, RegisterNewUserSchema, ResetForgotPasswordSchema, EmailSchema, LoginSchema } = require('../utils/schema');
+const { ResetPasswordSchema, RegisterNewUserSchema, ResetForgotPasswordSchema, EmailSchema, LoginSchema, twoFactorSchema } = require('../utils/schema');
 const { redisValidate } = require('../utils/validate');
+const cookieHelper = require('../utils/cookieHelper');
 const authRouter = express.Router();
 
 /**
@@ -59,8 +65,9 @@ const authRouter = express.Router();
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-authRouter.post('/register', authLimiter, redisValidate('register'), schemaValidate(EmailSchema, "body"), register);
-authRouter.post('/register/extra', authLimiter, )
+authRouter.post('/register', redisValidate('register', cookieHelper.getServiceGmail), schemaValidate(RegisterNewUserSchema, "body"), register);
+authRouter.post('/register/check-email', schemaValidate(EmailSchema, "body"), checkEmailExists)
+
 /**
  * @swagger
  * /auth/login:
@@ -99,7 +106,7 @@ authRouter.post('/register/extra', authLimiter, )
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-authRouter.post('/login', schemaValidate(LoginSchema, "body"), login);
+authRouter.post('/login', authLimiter, schemaValidate(LoginSchema, "body"), login);
 
 /**
  * @swagger
@@ -319,14 +326,27 @@ authRouter.put('/profile', authenticate, updateProfile);
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 authRouter.post('/change-password', authenticate, schemaValidate(ResetPasswordSchema, "body"), changePassword);
-authRouter.post('/forgot',  schemaValidate(EmailSchema, "body"), redisValidate('forgot'), forgot)
-authRouter.post('/reset-password',schemaValidate(ResetForgotPasswordSchema, 'validate'), resetPassword)
-authRouter.post('/verify-email', verifyMail) // sẽ gửi jwt chứa các loại thông tin đến, tùy vào type sẽ validate thông tin của người dùng
+authRouter.post('/forgot', schemaValidate(EmailSchema, "body"), redisValidate('forgot',cookieHelper.getServiceGmail), forgot)
+authRouter.post('/reset-password', schemaValidate(ResetForgotPasswordSchema, 'validate'), resetPassword)
+// Dùng mỗi cho việc verify tài khoản của người dùng
+authRouter.post('/register/verify-email', verifyMail) // sẽ gửi jwt chứa các loại thông tin đến, tùy vào type sẽ validate thông tin của người dùng
 authRouter.post('/sso/:provider', loginSSO)
-authRouter.post('/sso/:provider/create', schemaValidate(RegisterNewUserSchema, "body"), createSSO)
-authRouter.post('/me')
-authRouter.post('/resend/:type', redisValidate((req) => req.params.type), resendVerifyEmail)
-authRouter.post('/logout-all')
+authRouter.post('/re-authenticate', authenticate, reAuthenticate)
+// Route này dùng cho việc verify sso access token only
+// authRouter.post('/sso/:provider/verify')
+authRouter.get('/me', authenticate, checkSession)
+// cần check lại resend
+authRouter.post('/resend/:type', redisValidate((req) => req.params.type, cookieHelper.getServiceGmail), resendVerifyEmail)
+authRouter.post('/logout-all', authenticate, removeAllDevices)
+
+authRouter.post('/2fa/login/verify', authenticate2FA, schemaValidate(twoFactorSchema, "body"), twoFactorVerify )
+authRouter.post('/2fa/login/backup-codes/verify', authenticate2FA,schemaValidate(twoFactorSchema, "body"), twoFactorBackupCodeVerify)
+// Dùng để xác nhập otp từ authenticator app
+authRouter.post('/2fa/verify', schemaValidate(twoFactorSchema, "body"), authenticate, twoFactorVerify)
+// Sử dụng backup code để verify ( Trường hợp user không available trong tài khoản => không cần authenticate)
+authRouter.post('/2fa/backup-codes/verify', authenticate,schemaValidate(twoFactorSchema, "body"),  twoFactorBackupCodeVerify)
+// Regen backup codes, vô hiệu hóa tất cả backup codes cũ
+authRouter.post('/2fa/backup-codes/regenerate', authenticate, twoFactorBackupCodeRegenerate)
 // router.post('/facebook/callback', 
 
 module.exports = authRouter;

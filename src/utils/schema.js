@@ -9,14 +9,14 @@ const Joi = require('joi')
 const ResetForgotPasswordSchema = Joi.object({
     jwt: Joi.string().required().messages({"any.required": "Vui lòng gửi kèm mã code có trong mail"}),
     newPassword: Joi.string()
-    .pattern(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/)
+    .pattern(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*?&._\s]{8,}$/)
     .required().invalid(Joi.ref('oldPassword'))
     .messages({
         "string.pattern.base" : "Password phải có ít nhất 8 kí tự, gồm cả chữ và số",
         "any.invalid": "Mật khẩu không được trùng với mật khẩu cũ"
     }),
     newConfirmPassword: Joi.string()
-    .valid(Joi.ref('password'))
+    .valid(Joi.ref('newPassword'))
     .required().invalid(Joi.ref('oldPassword'))
     .messages({
       "any.only": "Mật khẩu xác nhận không khớp",
@@ -40,7 +40,7 @@ const ResetPasswordSchema = Joi.object({
         "any.invalid": "Mật khẩu không được trùng với mật khẩu cũ"
     }),
     newConfirmPassword: Joi.string()
-    .valid(Joi.ref('password'))
+    .valid(Joi.ref('newPassword'))
     .required().invalid(Joi.ref('oldPassword'))
     .messages({
       "any.only": "Mật khẩu xác nhận không khớp",
@@ -54,31 +54,24 @@ const ResetPasswordSchema = Joi.object({
  * @type Joi Object
  */
 const RegisterNewUserSchema = Joi.object({
-    email: Joi.string()
-    .email()
-    .required()
-    .messages({
-      "string.email": "Email không hợp lệ, Email là thông tin bắt buộc",
-    }),
     password: Joi.string()
-    .pattern(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/)
+    .pattern(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*?&._\s]{8,}$/)
     .required()
     .messages({
         "string.pattern.base" : "Password phải có ít nhất 8 kí tự, gồm cả chữ và số"
     }),
-    fullName: Joi.string()
-    .min(2)
-    .max(40)
+    userName: Joi.string()
+    .pattern(/^[A-Za-z0-9_-]{5,200}$/)
     .required()
     .messages({
-      "string.pattern.base": "Số điện thoại phải gồm đúng 10 chữ số",
+      "string.pattern.base": "Username không được chứa khoảng cách và ký tự đặc biệt",
+      "any.required": "Vui lòng nhập username"
     }),
     phoneNumber: Joi.string()
     .pattern(/^\d{10}$/) // đúng 10 số
     .messages({
       "string.pattern.base": "Số điện thoại phải gồm đúng 10 chữ số",
-    })
-    ,
+    }),
     confirmPassword: Joi.string()
     .valid(Joi.ref('password'))
     .required()
@@ -87,13 +80,14 @@ const RegisterNewUserSchema = Joi.object({
       "any.required": "Vui lòng nhập mật khẩu xác nhận"
     }),
 })
+
 const RegisterSSOSchema = Joi.object({
-    fullName: Joi.string()
-    .min(2)
-    .max(40)
+    userName: Joi.string()
+    .pattern(/^[A-Za-z0-9_-]{5,200}$/)
     .required()
     .messages({
-      "string.pattern.base": "Số điện thoại phải gồm đúng 10 chữ số",
+      "string.pattern.base": "Username không được chứa khoảng cách và ký tự đặc biệt",
+      "any.required": "Vui lòng nhập username"
     }),
     phoneNumber: Joi.string()
     .pattern(/^\d{10}$/) // đúng 10 số
@@ -101,7 +95,7 @@ const RegisterSSOSchema = Joi.object({
     .messages({
       "string.pattern.base": "Số điện thoại phải gồm đúng 10 chữ số",
     })
-})
+}) 
 const EmailSchema = Joi.object({
   email: Joi.string()
   .email()
@@ -111,12 +105,10 @@ const EmailSchema = Joi.object({
   })
 })
 const LoginSchema = Joi.object({
-  email: Joi.string()
-   .email()
+  userName: Joi.string()
    .required()
    .messages({
-    "string.email": "Email không hợp lệ, Email là thông tin bắt buộc",
-    "any.required": "Vui lòng nhập email"
+    "any.required": "Vui lòng nhập UserName"
   }),
   password: Joi.string()
   .required()
@@ -125,4 +117,12 @@ const LoginSchema = Joi.object({
   }) 
   
 })
-module.exports = { RegisterSSOSchema, LoginSchema,RegisterNewUserSchema, ResetForgotPasswordSchema, ResetPasswordSchema, EmailSchema}
+const twoFactorSchema = Joi.object({
+  jwt: Joi.string(), 
+  token: Joi.string()
+  .required()
+  .messages({
+    "any.required": "Thiếu token"
+  })
+})
+module.exports = { twoFactorSchema,RegisterSSOSchema, LoginSchema,RegisterNewUserSchema, ResetForgotPasswordSchema, ResetPasswordSchema, EmailSchema}

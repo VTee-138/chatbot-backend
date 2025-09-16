@@ -15,6 +15,8 @@ module.exports = {
   JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   JWT_VALIDATE_SECRET: process.env.JWT_VALIDATE_SECRET,
   JWT_VALIDATE_EXPIRES_IN: process.env.JWT_VALIDATE_EXPIRES_IN || '40s',
+  JWT_2FA_SECRET: process.env.JWT_2FA_SECRET,
+  JWT_2FA_EXPIRES_IN: process.env.JWT_2FA_EXPIRES_IN,
   // API Configuration
   API_VERSION: process.env.API_VERSION || 'v1',
   API_PREFIX: process.env.API_PREFIX || '/api',
@@ -53,5 +55,7 @@ module.exports = {
 
   // Facebok SSO
   FACEBOOK_APP_ID: process.env.FACEBOOK_APP_ID,
-  FACEBOOK_APP_SECRET: process.env.FACEBOOK_APP_SECRET
-};
+  FACEBOOK_APP_SECRET: process.env.FACEBOOK_APP_SECRET,
+  // Mail FE Link
+  URL_MAIL_PUBLIC : process.env.URL_MAIL_PUBLIC
+}

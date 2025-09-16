@@ -55,7 +55,8 @@ const htmlForgotVerifiedLink = (link, user_email) => `
 /** @type {HtmlConverter} */
 const HtmlConverter = {
     Forgot: htmlForgotVerifiedLink,
-    Register: htmlRegisterVerifiedLink
+    Register: htmlRegisterVerifiedLink,
+    
 };
 /**
  * @typedef {Object} EmailType
@@ -65,8 +66,9 @@ const HtmlConverter = {
 /** @type {EmailType} */
 const EmailType = {
     REGISTER : 'register',
-    FORGOT : 'forgot'
+    FORGOT : 'forgot',
+    MFA: "2fa"
 }
-const EmailTypeList = ['register', 'forgot']
+const EmailTypeList = ['register', 'forgot', '2fa']
 
 module.exports = { EmailTypeList, EmailType, HtmlConverter, htmlForgotVerifiedLink, htmlRegisterVerifiedLink, linkVerifyingToSend}

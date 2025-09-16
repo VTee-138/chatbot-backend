@@ -1,6 +1,25 @@
 const jwt = require('jsonwebtoken');
 const config = require('../config');
 
+const TOKEN_CONFIG = {
+  access: {
+    secret: config.JWT_SECRET,
+    expiresIn: config.JWT_EXPIRES_IN,
+  },
+  refresh: {
+    secret: config.JWT_REFRESH_SECRET,
+    expiresIn: config.JWT_REFRESH_EXPIRES_IN,
+  },
+  validate: {
+    secret: config.JWT_VALIDATE_SECRET,
+    expiresIn: config.JWT_VALIDATE_EXPIRES_IN,
+  },
+  '2fa': {
+    secret: config.JWT_2FA_SECRET,
+    expiresIn: config.JWT_2FA_EXPIRES_IN,
+  },
+}
+
 /**
  * Generate JWT token
  * @param {Object} payload - Token payload
@@ -8,11 +27,9 @@ const config = require('../config');
  * @returns {String} JWT token
  */
 const generateToken = (payload, type = 'access') => {
-  const secret = type === 'refresh' ? config.JWT_REFRESH_SECRET : type ==='validate'? config.JWT_VALIDATE_SECRET : config.JWT_SECRET;
-  const expiresIn = type === 'refresh' ? config.JWT_REFRESH_EXPIRES_IN : type === 'validate'? config.JWT_VALIDATE_EXPIRES_IN : config.JWT_EXPIRES_IN;
-  console.log(expiresIn)
-  return jwt.sign(payload, secret, { expiresIn });
-};
+  const { secret, expiresIn } = TOKEN_CONFIG[type] || TOKEN_CONFIG.access
+  return jwt.sign(payload, secret, { expiresIn })
+}
 
   /**
  * Verify JWT tokens
@@ -21,11 +38,13 @@ const generateToken = (payload, type = 'access') => {
  * @returns {Object} Decoded token payload
  */ 
 const verifyToken = (token, type = 'access') => {
-  const secret = type === 'refresh' ? config.JWT_REFRESH_SECRET : type === 'validate' ? config.JWT_VALIDATE_SECRET : config.JWT_SECRET;
-  const payload = jwt.verify(token, secret);
-  // console.log('as ',payload)
-  return payload
-};
+  try {
+    const { secret } = TOKEN_CONFIG[type] || TOKEN_CONFIG.access
+    return jwt.verify(token, secret)
+  } catch (error) {
+    throw error
+  }
+}
 /**
  * Decode to get payload, when you know token expired already
  * @param {String} token  - JWT Token

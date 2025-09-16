@@ -5,9 +5,10 @@ const router = express.Router();
 
 // Import route modules
 const authRoutes = require('./auth');
-const organizationRoutes = require('./organizations');
 const apiKeyRoutes = require('./apiKeys');
-const chatbotRoutes = require('./chatbot');
+const groupRouter = require('./groups');
+const zaloRouter = require('./zaloRouter');
+const userRouter = require('./userRouter');
 
 // Health check endpoint
 router.get('/health', (req, res) => {
@@ -407,8 +408,10 @@ router.get('/health', (req, res) => {
  */
 // API routes
 router.use('/auth', authRoutes);
-router.use('/organizations', organizationRoutes);
+
+router.use('/groups', groupRouter);
 router.use('/api-keys', apiKeyRoutes);
-router.use('/message', chatbotRoutes);
+router.use('/zalo', zaloRouter) 
+router.use('/me', userRouter)
 
 module.exports = router;

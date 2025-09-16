@@ -13,7 +13,7 @@ const {
 } = require('../controllers/organizationController');
 const { authenticate, requireOrganizationMember } = require('../middleware/auth');
 
-const router = express.Router();
+const groupRouter = express.Router();
 
 /**
  * @swagger
@@ -124,7 +124,7 @@ const router = express.Router();
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/', authenticate, createOrganization);
+groupRouter.post('/', authenticate, createOrganization);
 
 /**
  * @swagger
@@ -165,7 +165,7 @@ router.post('/', authenticate, createOrganization);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get('/', authenticate, getUserOrganizations);
+groupRouter.get('/', authenticate, getUserOrganizations);
 
 /**
  * @swagger
@@ -215,10 +215,10 @@ router.get('/', authenticate, getUserOrganizations);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get(
-  '/:organizationId',
+groupRouter.get(
+  '/:grId',
   authenticate,
-  requireOrganizationMember(['OWNER', 'ADMIN', 'MEMBER', 'VIEWER']),
+  requireOrganizationMember(['OWNER', 'ADMIN', 'MEMBER']),
   getOrganizationById
 );
 
@@ -227,8 +227,8 @@ router.get(
  * @desc    Update organization
  * @access  Private (Organization Admin/Owner)
  */
-router.put(
-  '/:organizationId',
+groupRouter.put(
+  '/:grId',
   authenticate,
   requireOrganizationMember(['OWNER', 'ADMIN']),
   updateOrganization
@@ -239,8 +239,8 @@ router.put(
  * @desc    Delete organization
  * @access  Private (Organization Owner)
  */
-router.delete(
-  '/:organizationId',
+groupRouter.delete(
+  '/:grId',
   authenticate,
   requireOrganizationMember(['OWNER']),
   deleteOrganization
@@ -251,8 +251,8 @@ router.delete(
  * @desc    Get organization members
  * @access  Private (Organization Member)
  */
-router.get(
-  '/:organizationId/members',
+groupRouter.get(
+  '/:grId/members',
   authenticate,
   requireOrganizationMember(['OWNER', 'ADMIN', 'MEMBER', 'VIEWER']),
   getOrganizationMembers
@@ -263,7 +263,7 @@ router.get(
  * @desc    Invite member to organization
  * @access  Private (Organization Admin/Owner)
  */
-router.post(
+groupRouter.post(
   '/:organizationId/members',
   authenticate,
   requireOrganizationMember(['OWNER', 'ADMIN']),
@@ -275,7 +275,7 @@ router.post(
  * @desc    Update member role
  * @access  Private (Organization Owner)
  */
-router.put(
+groupRouter.put(
   '/:organizationId/members/:userId',
   authenticate,
   requireOrganizationMember(['OWNER']),
@@ -287,7 +287,7 @@ router.put(
  * @desc    Remove member from organization
  * @access  Private (Organization Admin/Owner)
  */
-router.delete(
+groupRouter.delete(
   '/:organizationId/members/:userId',
   authenticate,
   requireOrganizationMember(['OWNER', 'ADMIN']),
@@ -299,11 +299,11 @@ router.delete(
  * @desc    Leave organization
  * @access  Private (Organization Member)
  */
-router.post(
+groupRouter.post(
   '/:organizationId/leave',
   authenticate,
   requireOrganizationMember(['ADMIN', 'MEMBER', 'VIEWER']),
   leaveOrganization
 );
 
-module.exports = router;
+module.exports = groupRouter;

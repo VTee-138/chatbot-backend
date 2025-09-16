@@ -37,14 +37,14 @@ class ssoService{
     }
     async verifyFacebookToken(idToken){
         try {
-            const package = this.getFBPackage(idToken)
-            const response = await axios.get(package.url)
+            const pkg = this.getFBPackage(idToken)
+            const response = await axios.get(pkg.url)
     
             const { data } = response.data
             if (!data.is_valid || data.app_id !== this.facebookAppId) {
                 throw new constant.ErrorResponse("Invalid Facebook Token", constant.BAD_REQUEST);
             }
-            return (await this.getFBProfileData()).data
+            return (await this.getFBProfileData(data.user_id, accessToken)).data
         } catch (error) {
             throw error
         }

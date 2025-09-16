@@ -7,7 +7,7 @@ class Constants {
     static UNAUTHORIZED = 401;
     static BAD_REQUEST = 400;
     static FORBIDDEN = 403;
-    static NOT_FOUND = 400;
+    static NOT_FOUND = 404;
     static CONFLICT = 409;
     static GATEWAY_TIMEOUT = 504;
     static TOO_MANY_REQUESTS = 429;
@@ -22,15 +22,41 @@ class Constants {
     static SESSION_NAME = "sid";
     static TIME_PICKER = {
         _30min: 30 * 60,
-        _15min: 15 * 60
+        _15min: 15 * 60,
+        _1day: 60*60*24,
+        _7day_ms:7*60*60*24*1000,
+        _7day_secs:7*60*60*24,
+        _1hour_ms:60*60*1000,
+        _120secs: 120 
     };
+    static MESSAGES = {
+        _UNAUTHORIZED: "User not available",
+        _TOKEN_INVALID: "Token invalid"
+    }
 }
-
+/**
+ * Custom Error class dùng để chuẩn hóa lỗi trong hệ thống.
+ *
+ * ✅ Khi nào dùng?
+ * - Dùng để throw ra lỗi có kiểm soát (operational error) trong Controller, Service hoặc Model.
+ * - Ví dụ: User không tồn tại, email đã bị trùng, quyền truy cập bị từ chối...
+ *
+ * 🛠 Cách hoạt động:
+ * - Kế thừa từ class Error chuẩn của JS.
+ * - Có thêm thuộc tính `status` để xác định HTTP status code.
+ * - Có thể kết hợp với errorHandler middleware để trả response chuẩn cho client.
+ *
+ * ⚠️ Lưu ý:
+ * - Chỉ dùng cho lỗi "dự đoán trước" (operational error).
+ * - Với lỗi hệ thống (bug, exception bất ngờ), nên để errorHandler bắt và xử lý riêng.
+ */
 class ErrorResponse extends Error {
-    constructor(message, status) {
+    constructor(message, statusCode, errors = [], isOperational = true) {
         super(message);
-        this.status = status;
-        Object.setPrototypeOf(this, new.target.prototype);
+        this.statusCode = statusCode;
+        this.errors = errors; // useful cho validation
+        this.isOperational = isOperational; // để phân biệt lỗi nào nên trả chi tiết người dùng và lỗi nào không trả ra 
+        Error.captureStackTrace(this, this.constructor);
     }
 }
 

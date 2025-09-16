@@ -1,7 +1,11 @@
 const { verifyToken } = require('../utils/jwt');
-const { errorResponse, httpOnlyRevoke } = require('../utils/response');
+const { errorResponse, httpOnlyRevoke, catchAsync } = require('../utils/response');
 const prisma = require('../config/database');
 const redis = require('../config/redis');
+const { ErrorResponse, Constants } = require('../utils/constant');
+const cookieHelper = require('../utils/cookieHelper');
+const userCredentialModel = require('../model/userCredentialModel');
+const { rateLimiterGeneral, rateLimiterAuth } = require('../config/limiter');
 
 /**
  * Authentication middleware - verify JWT Access Token
@@ -13,17 +17,12 @@ const authenticate = async (req, res, next) => {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return errorResponse(res, 'Access token is required', 401);
     }
-    if (!req.cookies.clientInformation) {
-      httpOnlyRevoke(res, "refreshToken")
-      httpOnlyRevoke(res, "clientInformation")
-      return errorResponse(res, 'Missing client information', 401);
-    }
+    if (!req.cookies.clientInformation) throw new ErrorResponse(Constants.MESSAGES._UNAUTHORIZED, Constants.UNAUTHORIZED)
     const token = authHeader.substring(7);
     try {
       const decoded = verifyToken(token, 'access');
-      const clientInformation = JSON.parse(req.cookies.clientInformation)
-      if (clientInformation.id !== decoded.id)
-      return errorResponse(res, 'This user not available', 401);
+      const clientId = cookieHelper.getClientId(req)
+      if (clientId !== decoded.id) throw new ErrorResponse(Constants.MESSAGES._UNAUTHORIZED, Constants.UNAUTHORIZED)
       next();
     } 
     catch (jwtError) {
@@ -36,7 +35,28 @@ const authenticate = async (req, res, next) => {
     return errorResponse(res, 'Authentication failed', 500);
   }
 };
+const authenticate2FA = catchAsync(async (req, res, next) => {
+  let token;
+  // Lấy token từ header Authorization: Bearer <token>
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    token = req.headers.authorization.split(' ')[1];
+  }
 
+  if (!token) {
+    return errorResponse(res, "Authentication token required", Constants.UNAUTHORIZED);
+  }
+
+  try {
+    const decoded = verifyToken(token, '2fa');
+    // Gắn userId vào request để controller sau có thể sử dụng
+    req.userId = decoded.id;
+    req.mfa = true
+    next();
+  } catch (error) {
+    // Handle JWT errors (expired, invalid signature, etc.)
+    next(error)
+  }
+});
 /**
  * Authorization middleware - check user roles
  * @param {Array} roles - Allowed roles
@@ -146,21 +166,21 @@ const requireOrganizationMember = (roles = []) => {
         return errorResponse(res, 'Authentication required', 401);
       }
       
-      const { organizationId } = req.params;
+      const { grId } = req.params;
       
-      if (!organizationId) {
-        return errorResponse(res, 'Organization ID is required', 400);
+      if (!grId) {
+        return errorResponse(res, 'Group ID is required', 400);
       }
       
-      const membership = await prisma.organizationMember.findUnique({
+      const membership = await prisma.group_members.findUnique({
         where: {
-          userId_organizationId: {
+          userId_groupId: {
             userId: req.user.id,
-            organizationId,
+            grId,
           },
         },
         include: {
-          organization: {
+          group: {
             select: {
               id: true,
               name: true,
@@ -216,9 +236,11 @@ const authLimiter = async (req, res, next) => {
         });
     }
 }
-
-
+const is2FAEnabled = catchAsync( async (req, res, next) =>{
+  
+})
 module.exports = {
+  authenticate2FA,
   authenticate,
   authorize,
   authenticateApiKey,

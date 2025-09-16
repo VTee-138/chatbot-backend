@@ -1,5 +1,6 @@
 const redis = require("../config/redis")
-const { Constants } = require("./constant")
+const { Constants, ErrorResponse } = require("./constant");
+const { EmailTypeList } = require("./mailConverter");
 const { errorResponse, successResponse, catchAsync } = require("./response")
 /**
  * @description Để tránh người dùng request quá nhiều tới dịch vụ register hoặc forgot mặc
@@ -11,23 +12,23 @@ const { errorResponse, successResponse, catchAsync } = require("./response")
  * @param {String} type có thể là register hoặc là forgot
  * @returns 
  */
-const redisValidate = (type) =>{
-    return async (req, res, next) => {
+const redisValidate = (type, keyGetter) =>{
+     return async (req, res, next) => {
         try {
-            const email = req.body?.email
-            if (!email) {
-                return errorResponse(res, "Thiếu email", 400)
+            const data = typeof keyGetter === "function" ? keyGetter(req) : keyGetter;
+            if (!data) {
+                throw new ErrorResponse(res, Constants.MESSAGES._UNAUTHORIZED, Constants.UNAUTHORIZED);
             }
-            const value = await redis.get(`${type}:${email}`)
-            if (value) return errorResponse( res, "Vui lòng kiểm tra mail xác nhận để kích hoạt tài khoản!", Constants.OK)
-            return next()
+            const value = await redis.get(`${type}:${data}`);
+            if (value && EmailTypeList.includes(type)) {
+                return errorResponse(res, "Vui lòng kiểm tra mail xác nhận để kích hoạt tài khoản!", Constants.BAD_REQUEST);
+            }
+            else if (value) return errorResponse(res, "BAD REQUESTS!", Constants.BAD_REQUEST);
+            return next();
+        } catch (err) {
+            next(err);
         }
-        catch (err) {
-            console.error("Redis validate error:", err)
-            return errorResponse(res, "Có lỗi xảy ra", 500)
-        }
-    }
+    };
 }
 
-const validateForgotAccount = catchAsync( )
 module.exports = {redisValidate}

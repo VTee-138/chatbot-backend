@@ -1,5 +1,6 @@
 const userCredentialModel = require("../model/userCredentialModel")
 const { Constants } = require("../utils/constant")
+const { hashPassword, generateApiKey } = require("../utils/crypto")
 const ssoService = require("../utils/ssoService")
 
 class authService{
@@ -7,9 +8,9 @@ class authService{
         try {
             const payload = await ssoService.verifyGoogleToken(accessToken)
             if (!payload || !payload.email_verified) {
-                throw new constant.ErrorResponse("GOOGLE ERROR: Invalid Id Token", constant.BAD_REQUEST)
+                throw new Constants.ErrorResponse("GOOGLE ERROR: Invalid Id Token", constant.BAD_REQUEST)
             }
-            return payload
+            return { sub: payload.sub, userName: payload.name, email: payload.email}
         } catch (error) {
             throw error
         }
@@ -17,7 +18,8 @@ class authService{
     async facebookSSOLogin(accessToken){ 
         try {
             const payload = await ssoService.verifyFacebookToken(accessToken)
-            return { sub: payload.id, fullName: `${payload.first_name} ${payload.last_name}`}
+            console.log(payload.id)
+            return { sub: payload.id, userName: `${payload.first_name} ${payload.last_name}`}
         } catch (error) {
             throw error
         }
@@ -43,6 +45,21 @@ class authService{
             throw error
         }
         return user
+    }
+    // maxAttempts trong trường hợp kẹt vòng lặp
+    async generateUniqueUserName(baseName, length = 2, maxAttempts = 10){
+        let attempts = 0;
+        let newUserName;
+        while (attempts < maxAttempts) {
+            attempts++;
+
+            newUserName = baseName + generateApiKey(length);
+
+            const isUserNameExists = await userCredentialModel.findAccountWithUserName(newUserName);
+            if (!isUserNameExists) return newUserName; 
+            
+        }
+        throw new Error("Không thể tạo username duy nhất sau nhiều lần thử");
     }
 
 }

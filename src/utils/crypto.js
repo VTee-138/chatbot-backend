@@ -74,6 +74,16 @@ const createShield = (length) => {
   const shield = generateApiKey(length)
   return shield
 }
+
+const convertToAscii = (str) => {
+  return str
+    .normalize("NFD")                
+    .replace(/[\u0300-\u036f]/g, "")  
+    .replace(/đ/g, "d")              
+    .replace(/Đ/g, "D")            
+    .replace(/\s+/g, "")            
+    .toLowerCase();                   
+}
 module.exports = {
   hashPassword,
   comparePassword,
@@ -81,5 +91,6 @@ module.exports = {
   hashApiKey,
   generateRandomString,
   createSlug,
-  createShield
+  createShield,
+  convertToAscii
 };

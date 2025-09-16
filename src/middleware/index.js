@@ -1,40 +1,48 @@
-const { errorResponse } = require('../utils/response');
+const { Constants } = require('../utils/constant');
+const { errorResponse, httpOnlyRevoke } = require('../utils/response');
 
 /**
  * Global error handler middleware
  */
 const errorHandler = (err, req, res, next) => {
   console.error('Error:', err);
-  
-  // Prisma errors
-  if (err.name === 'PrismaClientKnownRequestError') {
-    switch (err.code) {
-      case 'P2002':
-        return errorResponse(res, 'Duplicate entry. Resource already exists.', 409);
-      case 'P2025':
-        return errorResponse(res, 'Resource not found.', 404);
-      case 'P2003':
-        return errorResponse(res, 'Foreign key constraint failed.', 400);
-      default:
-        return errorResponse(res, 'Database error occurred.', 500);
+  if (err.isOperational){
+    // Clear user not available
+    if ( err.message = Constants.MESSAGES._UNAUTHORIZED){
+      // Clear user information
+      httpOnlyRevoke(res, "refresh")
+      httpOnlyRevoke(res, "clientInformation")
+      return errorResponse(res, Constants.MESSAGES._UNAUTHORIZED, Constants.UNAUTHORIZED)
+    }
+
+    // Prisma errors
+    if (err.name === 'PrismaClientKnownRequestError') {
+      switch (err.code) {
+        case 'P2002':
+          return errorResponse(res, 'Duplicate entry. Resource already exists.', 409);
+        case 'P2025':
+          return errorResponse(res, 'Resource not found.', 404);
+        case 'P2003':
+          return errorResponse(res, 'Foreign key constraint failed.', 400);
+        default:
+          return errorResponse(res, 'Database error occurred.', 500);
+      }
+    }
+    // JWT errors
+    if (err.name === 'JsonWebTokenError') {
+      return errorResponse(res, 'Invalid token.', 401);
+    }
+    
+    if (err.name === 'TokenExpiredError') {
+      return errorResponse(res, 'Token has expired.', 401);
+    }
+    
+    // Validation errors
+    if (err.name === 'ValidationError') {
+      const errors = Object.values(err.errors).map(e => e.message);
+      return errorResponse(res, 'Validation failed.', 400, errors);
     }
   }
-  
-  // JWT errors
-  if (err.name === 'JsonWebTokenError') {
-    return errorResponse(res, 'Invalid token.', 401);
-  }
-  
-  if (err.name === 'TokenExpiredError') {
-    return errorResponse(res, 'Token has expired.', 401);
-  }
-  
-  // Validation errors
-  if (err.name === 'ValidationError') {
-    const errors = Object.values(err.errors).map(e => e.message);
-    return errorResponse(res, 'Validation failed.', 400, errors);
-  }
-  
   // Default error response
   const statusCode = err.statusCode || err.status || 500;
   const message = err.message || 'Internal Server Error';
