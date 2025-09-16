@@ -1,17 +1,17 @@
 const express = require('express');
 const {
-  createOrganization,
-  getUserOrganizations,
-  getOrganizationById,
-  updateOrganization,
-  deleteOrganization,
-  getOrganizationMembers,
+  createGroup,
+  getUserGroups,
+  getGroupById,
+  updateGroup,
+  deleteGroup,
+  getGroupMembers,
   inviteMember,
   updateMemberRole,
   removeMember,
-  leaveOrganization,
-} = require('../controllers/organizationController');
-const { authenticate, requireOrganizationMember } = require('../middleware/auth');
+  leaveGroup,
+} = require('../controllers/groupController');
+const { authenticate, req, requireGroupMember } = require('../middleware/auth');
 
 const groupRouter = express.Router();
 
@@ -19,7 +19,7 @@ const groupRouter = express.Router();
  * @swagger
  * components:
  *   schemas:
- *     CreateOrganizationRequest:
+ *     CreateGroupRequest:
  *       type: object
  *       required:
  *         - name
@@ -36,9 +36,9 @@ const groupRouter = express.Router();
  *           format: uri
  *           nullable: true
  *           example: https://example.com/logo.png
- *     OrganizationResponse:
+ *     GroupResponse:
  *       allOf:
- *         - $ref: '#/components/schemas/Organization'
+ *         - $ref: '#/components/schemas/Group'
  *         - type: object
  *           properties:
  *             creator:
@@ -92,11 +92,11 @@ const groupRouter = express.Router();
 
 /**
  * @swagger
- * /organizations:
+ * /Groups:
  *   post:
- *     summary: Create new organization
- *     description: Create a new organization with the authenticated user as owner
- *     tags: [Organizations]
+ *     summary: Create new Group
+ *     description: Create a new Group with the authenticated user as owner
+ *     tags: [Groups]
  *     security:
  *       - BearerAuth: []
  *     requestBody:
@@ -104,10 +104,10 @@ const groupRouter = express.Router();
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/CreateOrganizationRequest'
+ *             $ref: '#/components/schemas/CreateGroupRequest'
  *     responses:
  *       201:
- *         description: Organization created successfully
+ *         description: Group created successfully
  *         content:
  *           application/json:
  *             schema:
@@ -116,7 +116,7 @@ const groupRouter = express.Router();
  *                 - type: object
  *                   properties:
  *                     data:
- *                       $ref: '#/components/schemas/OrganizationResponse'
+ *                       $ref: '#/components/schemas/GroupResponse'
  *       401:
  *         description: Unauthorized
  *         content:
@@ -124,20 +124,20 @@ const groupRouter = express.Router();
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-groupRouter.post('/', authenticate, createOrganization);
+groupRouter.post('/', authenticate, createGroup);
 
 /**
  * @swagger
- * /organizations:
+ * /Groups:
  *   get:
- *     summary: Get user's organizations
- *     description: Retrieve all organizations the authenticated user is a member of
- *     tags: [Organizations]
+ *     summary: Get user's Groups
+ *     description: Retrieve all Groups the authenticated user is a member of
+ *     tags: [Groups]
  *     security:
  *       - BearerAuth: []
  *     responses:
  *       200:
- *         description: Organizations retrieved successfully
+ *         description: Groups retrieved successfully
  *         content:
  *           application/json:
  *             schema:
@@ -149,7 +149,7 @@ groupRouter.post('/', authenticate, createOrganization);
  *                       type: array
  *                       items:
  *                         allOf:
- *                           - $ref: '#/components/schemas/OrganizationResponse'
+ *                           - $ref: '#/components/schemas/GroupResponse'
  *                           - type: object
  *                             properties:
  *                               membershipRole:
@@ -165,28 +165,28 @@ groupRouter.post('/', authenticate, createOrganization);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-groupRouter.get('/', authenticate, getUserOrganizations);
+groupRouter.get('/', authenticate, getUserGroups);
 
 /**
  * @swagger
- * /organizations/{organizationId}:
+ * /Groups/{GroupId}:
  *   get:
- *     summary: Get organization by ID
- *     description: Retrieve detailed information about a specific organization
- *     tags: [Organizations]
+ *     summary: Get Group by ID
+ *     description: Retrieve detailed information about a specific Group
+ *     tags: [Groups]
  *     security:
  *       - BearerAuth: []
  *     parameters:
  *       - in: path
- *         name: organizationId
+ *         name: GroupId
  *         required: true
  *         schema:
  *           type: string
  *           format: uuid
- *         description: Organization ID
+ *         description: Group ID
  *     responses:
  *       200:
- *         description: Organization retrieved successfully
+ *         description: Group retrieved successfully
  *         content:
  *           application/json:
  *             schema:
@@ -195,7 +195,7 @@ groupRouter.get('/', authenticate, getUserOrganizations);
  *                 - type: object
  *                   properties:
  *                     data:
- *                       $ref: '#/components/schemas/OrganizationResponse'
+ *                       $ref: '#/components/schemas/GroupResponse'
  *       401:
  *         description: Unauthorized
  *         content:
@@ -203,13 +203,13 @@ groupRouter.get('/', authenticate, getUserOrganizations);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *       403:
- *         description: Forbidden - Not a member of this organization
+ *         description: Forbidden - Not a member of this Group
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *       404:
- *         description: Organization not found
+ *         description: Group not found
  *         content:
  *           application/json:
  *             schema:
@@ -218,92 +218,96 @@ groupRouter.get('/', authenticate, getUserOrganizations);
 groupRouter.get(
   '/:grId',
   authenticate,
-  requireOrganizationMember(['OWNER', 'ADMIN', 'MEMBER']),
-  getOrganizationById
+  requireGroupMember(['OWNER', 'ADMIN', 'MEMBER']),
+  getGroupById
 );
-
+groupRouter.get('/api/v1/groups/:grId/members', authenticate,
+  requireGroupMember(['OWNER', 'ADMIN', 'MEMBER']), getGroupMembers)
+groupRouter.patch('/api/v1/groups/:grId/members/:memberId', authenticate, requireGroupMember(['OWNER', 'ADMIN', 'MEMBER']), updateMemberRole)
+groupRouter.delete('/api/v1/groups/:grId/members/:memberId', authenticate,requireGroupMember(['OWNER', 'ADMIN']), removeMember)
+groupRouter.get('/api/v1/groups', authenticate, requireGroupMember(['OWNER', 'ADMIN', 'MEMBER']), getUserGroups)
 /**
- * @route   PUT /api/v1/organizations/:organizationId
- * @desc    Update organization
- * @access  Private (Organization Admin/Owner)
+ * @route   PUT /api/v1/Groups/:GroupId
+ * @desc    Update Group
+ * @access  Private (Group Admin/Owner)
  */
 groupRouter.put(
   '/:grId',
   authenticate,
-  requireOrganizationMember(['OWNER', 'ADMIN']),
-  updateOrganization
+  requireGroupMember(['OWNER', 'ADMIN']),
+  updateGroup
 );
 
 /**
- * @route   DELETE /api/v1/organizations/:organizationId
- * @desc    Delete organization
- * @access  Private (Organization Owner)
+ * @route   DELETE /api/v1/Groups/:GroupId
+ * @desc    Delete Group
+ * @access  Private (Group Owner)
  */
 groupRouter.delete(
   '/:grId',
   authenticate,
-  requireOrganizationMember(['OWNER']),
-  deleteOrganization
+  requireGroupMember(['OWNER']),
+  deleteGroup
 );
 
 /**
- * @route   GET /api/v1/organizations/:organizationId/members
- * @desc    Get organization members
- * @access  Private (Organization Member)
+ * @route   GET /api/v1/Groups/:GroupId/members
+ * @desc    Get Group members
+ * @access  Private (Group Member)
  */
 groupRouter.get(
   '/:grId/members',
   authenticate,
-  requireOrganizationMember(['OWNER', 'ADMIN', 'MEMBER', 'VIEWER']),
-  getOrganizationMembers
+  requireGroupMember(['OWNER', 'ADMIN', 'MEMBER', 'VIEWER']),
+  getGroupMembers
 );
 
 /**
- * @route   POST /api/v1/organizations/:organizationId/members
- * @desc    Invite member to organization
- * @access  Private (Organization Admin/Owner)
+ * @route   POST /api/v1/Groups/:GroupId/members
+ * @desc    Invite member to Group
+ * @access  Private (Group Admin/Owner)
  */
 groupRouter.post(
-  '/:organizationId/members',
+  '/:GroupId/members',
   authenticate,
-  requireOrganizationMember(['OWNER', 'ADMIN']),
+  requireGroupMember(['OWNER', 'ADMIN']),
   inviteMember
 );
 
 /**
- * @route   PUT /api/v1/organizations/:organizationId/members/:userId
+ * @route   PUT /api/v1/Groups/:GroupId/members/:userId
  * @desc    Update member role
- * @access  Private (Organization Owner)
+ * @access  Private (Group Owner)
  */
 groupRouter.put(
-  '/:organizationId/members/:userId',
+  '/:GroupId/members/:userId',
   authenticate,
-  requireOrganizationMember(['OWNER']),
+  requireGroupMember(['OWNER']),
   updateMemberRole
 );
 
 /**
- * @route   DELETE /api/v1/organizations/:organizationId/members/:userId
- * @desc    Remove member from organization
- * @access  Private (Organization Admin/Owner)
+ * @route   DELETE /api/v1/Groups/:GroupId/members/:userId
+ * @desc    Remove member from Group
+ * @access  Private (Group Admin/Owner)
  */
 groupRouter.delete(
-  '/:organizationId/members/:userId',
+  '/:GroupId/members/:userId',
   authenticate,
-  requireOrganizationMember(['OWNER', 'ADMIN']),
+  requireGroupMember(['OWNER', 'ADMIN']),
   removeMember
 );
 
 /**
- * @route   POST /api/v1/organizations/:organizationId/leave
- * @desc    Leave organization
- * @access  Private (Organization Member)
+ * @route   POST /api/v1/Groups/:GroupId/leave
+ * @desc    Leave Group
+ * @access  Private (Group Member)
  */
 groupRouter.post(
-  '/:organizationId/leave',
+  '/:GroupId/leave',
   authenticate,
-  requireOrganizationMember(['ADMIN', 'MEMBER', 'VIEWER']),
-  leaveOrganization
+  requireGroupMember(['ADMIN', 'MEMBER', 'VIEWER']),
+  leaveGroup
 );
 
 module.exports = groupRouter;

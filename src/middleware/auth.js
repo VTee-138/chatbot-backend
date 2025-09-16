@@ -6,6 +6,7 @@ const { ErrorResponse, Constants } = require('../utils/constant');
 const cookieHelper = require('../utils/cookieHelper');
 const userCredentialModel = require('../model/userCredentialModel');
 const { rateLimiterGeneral, rateLimiterAuth } = require('../config/limiter');
+const groupDBServices = require('../services/groupDBServices');
 
 /**
  * Authentication middleware - verify JWT Access Token
@@ -159,52 +160,35 @@ const isAccountForgotExists = async (req, res, next) => {
  * Organization member middleware - check if user is member of organization
  * @param {Array} roles - Required organization roles
  */
-const requireOrganizationMember = (roles = []) => {
+const requireGroupMember = (roles = []) => {
   return async (req, res, next) => {
     try {
-      if (!req.user) {
-        return errorResponse(res, 'Authentication required', 401);
-      }
-      
+      // if (!req.user) {
+      //   return errorResponse(res, 'Authentication required', 401);
+      // }
+      const clientId = cookieHelper.getClientId(req)
       const { grId } = req.params;
       
       if (!grId) {
         return errorResponse(res, 'Group ID is required', 400);
       }
       
-      const membership = await prisma.group_members.findUnique({
-        where: {
-          userId_groupId: {
-            userId: req.user.id,
-            grId,
-          },
-        },
-        include: {
-          group: {
-            select: {
-              id: true,
-              name: true,
-              slug: true,
-              isActive: true,
-            },
-          },
-        },
-      });
+      const membership = await groupDBServices.getMemberInformation(clientId, grId)
       
       if (!membership) {
         return errorResponse(res, 'You are not a member of this organization', 403);
       }
       
-      if (!membership.organization.isActive) {
-        return errorResponse(res, 'Organization is disabled', 403);
-      }
+      // if (!membership.organization.isActive) {
+      //   return errorResponse(res, 'Organization is disabled', 403);
+      // }
       
       if (roles.length && !roles.includes(membership.role)) {
         return errorResponse(res, 'Insufficient organization permissions', 403);
       }
       
-      req.organization = membership.organization;
-      req.organizationRole = membership.role;
+      req.groupId = membership.groupId;
+      req.groupRole = membership.role;
       
       next();
     } catch (error) {
@@ -244,7 +228,7 @@ module.exports = {
   authenticate,
   authorize,
   authenticateApiKey,
-  requireOrganizationMember,
+  requireGroupMember,
   isAccountForgotExists,
   generalLimiter,
   authLimiter

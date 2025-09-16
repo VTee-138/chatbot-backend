@@ -7,7 +7,7 @@ const prisma = require('../config/database');
  * Create new API key
  */
 const createApiKey = catchAsync(async (req, res) => {
-  const { name, organizationId, permissions, rateLimit, expiresAt } = req.body;
+  const { name, groupId, permissions, rateLimit, expiresAt } = req.body;
   
   // Generate API key
   const apiKey = generateApiKey();
@@ -23,7 +23,7 @@ const createApiKey = catchAsync(async (req, res) => {
       rateLimit: rateLimit || config.RATE_LIMIT_MAX_REQUESTS,
       expiresAt: expiresAt ? new Date(expiresAt) : null,
       userId: req.user.id,
-      organizationId: organizationId || null,
+      groupId: groupId || null,
     },
     select: {
       id: true,
@@ -34,7 +34,7 @@ const createApiKey = catchAsync(async (req, res) => {
       isActive: true,
       createdAt: true,
       expiresAt: true,
-      organization: {
+      group: {
         select: {
           id: true,
           name: true,
@@ -51,12 +51,12 @@ const createApiKey = catchAsync(async (req, res) => {
  * Get user's API keys
  */
 const getUserApiKeys = catchAsync(async (req, res) => {
-  const { page = 1, limit = config.DEFAULT_PAGE_SIZE, organizationId } = req.query;
+  const { page = 1, limit = config.DEFAULT_PAGE_SIZE, groupId } = req.query;
   
   const skip = (page - 1) * limit;
   const where = {
     userId: req.user.id,
-    ...(organizationId && { organizationId }),
+    ...(groupId && { groupId }),
   };
   
   const [apiKeys, total] = await Promise.all([
@@ -73,7 +73,7 @@ const getUserApiKeys = catchAsync(async (req, res) => {
         lastUsed: true,
         createdAt: true,
         expiresAt: true,
-        organization: {
+        group: {
           select: {
             id: true,
             name: true,
@@ -91,17 +91,17 @@ const getUserApiKeys = catchAsync(async (req, res) => {
 });
 
 /**
- * Get organization API keys
+ * Get group API keys
  */
-const getOrganizationApiKeys = catchAsync(async (req, res) => {
-  const { organizationId } = req.params;
+const getGroupApiKeys = catchAsync(async (req, res) => {
+  const { groupId } = req.params;
   const { page = 1, limit = config.DEFAULT_PAGE_SIZE } = req.query;
   
   const skip = (page - 1) * limit;
   
   const [apiKeys, total] = await Promise.all([
     prisma.apiKey.findMany({
-      where: { organizationId },
+      where: { groupId },
       skip,
       take: parseInt(limit),
       select: {
@@ -124,7 +124,7 @@ const getOrganizationApiKeys = catchAsync(async (req, res) => {
       },
       orderBy: { createdAt: 'desc' },
     }),
-    prisma.apiKey.count({ where: { organizationId } }),
+    prisma.apiKey.count({ where: { groupId } }),
   ]);
   
   return paginatedResponse(res, apiKeys, total, parseInt(page), parseInt(limit));
@@ -151,7 +151,7 @@ const getApiKeyById = catchAsync(async (req, res) => {
       createdAt: true,
       updatedAt: true,
       expiresAt: true,
-      organization: {
+      group: {
         select: {
           id: true,
           name: true,
@@ -198,7 +198,7 @@ const updateApiKey = catchAsync(async (req, res) => {
       createdAt: true,
       updatedAt: true,
       expiresAt: true,
-      organization: {
+      group: {
         select: {
           id: true,
           name: true,
@@ -242,7 +242,7 @@ const regenerateApiKey = catchAsync(async (req, res) => {
       createdAt: true,
       updatedAt: true,
       expiresAt: true,
-      organization: {
+      group: {
         select: {
           id: true,
           name: true,
@@ -311,7 +311,7 @@ const getApiKeyUsage = catchAsync(async (req, res) => {
 module.exports = {
   createApiKey,
   getUserApiKeys,
-  getOrganizationApiKeys,
+  getGroupApiKeys,
   getApiKeyById,
   updateApiKey,
   regenerateApiKey,
