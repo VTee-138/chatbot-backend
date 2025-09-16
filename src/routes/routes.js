@@ -1,8 +1,9 @@
-const express = require('express');
-const authRoutes = require('./auth');
-const organizationRoutes = require('./organizations');
-const apiKeyRoutes = require('./apiKeys');
-const { successResponse } = require('../utils/response');
+const express = require("express");
+const authRoutes = require("./auth");
+const organizationRoutes = require("./organizations");
+const apiKeyRoutes = require("./apiKeys");
+const { successResponse } = require("../utils/response");
+const InvitationRoutes = require("./invitationRoutes");
 
 const router = express.Router();
 
@@ -46,20 +47,25 @@ const router = express.Router();
  *                           example: Connected
  */
 // Health check endpoint
-router.get('/health', (req, res) => {
-  return successResponse(res, {
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    version: process.env.npm_package_version || '1.0.0',
-    environment: process.env.NODE_ENV || 'development',
-    database: 'Connected', // You could add actual DB health check here
-  }, 'Service is healthy');
+router.get("/health", (req, res) => {
+  return successResponse(
+    res,
+    {
+      status: "OK",
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      version: process.env.npm_package_version || "1.0.0",
+      environment: process.env.NODE_ENV || "development",
+      database: "Connected", // You could add actual DB health check here
+    },
+    "Service is healthy"
+  );
 });
 
 // API routes
-router.use('/auth', authRoutes);
-router.use('/organizations', organizationRoutes);
-router.use('/api-keys', apiKeyRoutes);
+router.use("/auth", authRoutes);
+router.use("/organizations", organizationRoutes);
+router.use("/api-keys", apiKeyRoutes);
+router.use("/invitations", InvitationRoutes);
 
 module.exports = router;
