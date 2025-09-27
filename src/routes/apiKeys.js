@@ -8,8 +8,9 @@ const {
   regenerateApiKey,
   deleteApiKey,
   getApiKeyUsage,
+  getGroupApiKeys,
 } = require('../controllers/apiKeyController');
-const { authenticate, requireOrganizationMember } = require('../middleware/auth');
+const { authenticate, requireGroupMember } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -63,19 +64,19 @@ router.delete('/:apiKeyId', authenticate, deleteApiKey);
 router.get('/:apiKeyId/usage', authenticate, getApiKeyUsage);
 
 /**
- * Organization API keys routes
+ * Group API keys routes
  */
 
 /**
- * @route   GET /api/v1/organizations/:organizationId/api-keys
- * @desc    Get organization API keys
- * @access  Private (Organization Member)
+ * @route   GET /api/v1/Groups/:GroupId/api-keys
+ * @desc    Get Group API keys
+ * @access  Private (Group Member)
  */
 router.get(
-  '/organizations/:organizationId/api-keys',
+  '/Groups/:GroupId/api-keys',
   authenticate,
-  requireOrganizationMember(['OWNER', 'ADMIN', 'MEMBER']),
-  getOrganizationApiKeys
+  requireGroupMember(['OWNER', 'ADMIN', 'MEMBER']),
+  getGroupApiKeys
 );
 
 module.exports = router;

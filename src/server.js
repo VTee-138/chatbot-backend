@@ -17,41 +17,29 @@ const { RedisStore } = require('connect-redis')
 const redis = require('./config/redis');
 const router = require('./routes/index');
 const { sendMessage } = require('./controllers/chatbotController');
-// Create Express app
+const { generalLimiter } = require('./middleware/auth');
 const app = express();
 app.use(express.static(path.join(__dirname, "../public")))
 // Rate limiting
-const limiter = rateLimit({
-  windowMs: config.RATE_LIMIT_WINDOW_MS,
-  max: config.RATE_LIMIT_MAX_REQUESTS,
-  message: {
-    success: false,
-    message: 'Too many requests, please try again later.',
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-app.use(limiter);
-
+app.use(generalLimiter)
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 // Patch để connect-redis dùng setex với ioredis
-RedisStore.prototype.set = function (sid, sess, fn) {
-  const ttl = this.ttl || 86400; // TTL mặc định 1 ngày
-  const key = this.prefix + sid;
+// RedisStore.prototype.set = function (sid, sess, fn) {
+//   const ttl = this.ttl || 86400; // TTL mặc định 1 ngày
+//   const key = this.prefix + sid;
 
-  let value;
-  try {
-    value = JSON.stringify(sess);
-  } catch (er) {
-    return fn(er);
-  }
+//   let value;
+//   try {
+//     value = JSON.stringify(sess);
+//   } catch (er) {
+//     return fn(er);
+//   }
 
-  this.client.setex(key, ttl, value, fn);
-}
+//   this.client.setex(key, ttl, value, fn);
+// }
 // Trust proxy (for rate limiting and IP detection)
 app.set('trust proxy', 1);
 // Security middleware
@@ -74,26 +62,26 @@ app.use(cors({
 }));
 
 
-// Saving session in Redis for performance improvement
-app.use(session({
-  store: new RedisStore({
-    client: redis,
-    prefix: "sess:",
-    ttl: 60 * 60 * 24,
-    disableTTL: false // Đảm bảo vẫn set expire
-  }),
-  secret: config.REDIS_STORE_SECRET,
-  resave: false,
-  saveUninitialized: false, // session chỉ được tạo khi bạn bắt đầu modify nó
-  rolling: true, // Mỗi khi người dùng thực hiện bắt kì activity nào với API, thì session sẽ tự động tái tạo session mới
-  cookie: {
-    secure: false, // Chỉ bật khi lên môi trường production
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge: 24 * 60 * 60 * 1000 // 1 ngày
+// // Saving session in Redis for performance improvement
+// app.use(session({
+//   store: new RedisStore({
+//     client: redis,
+//     prefix: "sess:",
+//     ttl: 60 * 60 * 24,
+//     disableTTL: false // Đảm bảo vẫn set expire
+//   }),
+//   secret: config.REDIS_STORE_SECRET,
+//   resave: false,
+//   saveUninitialized: false, // session chỉ được tạo khi bạn bắt đầu modify nó
+//   rolling: true, // Mỗi khi người dùng thực hiện bắt kì activity nào với API, thì session sẽ tự động tái tạo session mới
+//   cookie: {
+//     secure: false, // Chỉ bật khi lên môi trường production
+//     httpOnly: true,
+//     sameSite: 'lax',
+//     maxAge: 24 * 60 * 60 * 1000 // 1 ngày
 
-  }
-}))
+//   }
+// }))
 
 // Logging
 if (config.NODE_ENV === 'development') {

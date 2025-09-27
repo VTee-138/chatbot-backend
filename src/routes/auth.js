@@ -10,14 +10,23 @@ const {
   forgot,
   verifyMail,
   resendVerifyEmail,
-  googleSSOLogin,
-  facebookSSOLogin,
-  resetPassword
+  resetPassword,
+  createSSO,
+  loginSSO,
+  checkEmailExists,
+  checkSession,
+  removeAllDevices,
+  twoFactorVerify,
+  twoFactorBackupCodeVerify,
+  twoFactorBackupCodeRegenerate,
+  reAuthenticate
 } = require('../controllers/authController');
-const { authenticate, isAccountForgotExists } = require('../middleware/auth');
+const { authenticate, isAccountForgotExists, authLimiter, authenticate2FA } = require('../middleware/auth');
 const schemaValidate = require('../utils/schemaValidate');
-const { ResetPasswordSchema, RegisterNewUserSchema, ResetForgotPasswordSchema } = require('../utils/schema')
-const router = express.Router();
+const { ResetPasswordSchema, RegisterNewUserSchema, ResetForgotPasswordSchema, EmailSchema, LoginSchema, twoFactorSchema } = require('../utils/schema');
+const { redisValidate } = require('../utils/validate');
+const cookieHelper = require('../utils/cookieHelper');
+const authRouter = express.Router();
 
 /**
  * @swagger
@@ -56,7 +65,8 @@ const router = express.Router();
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/register', schemaValidate(RegisterNewUserSchema, "body"), register);
+authRouter.post('/register', redisValidate('register', cookieHelper.getServiceGmail), schemaValidate(RegisterNewUserSchema, "body"), register);
+authRouter.post('/register/check-email', schemaValidate(EmailSchema, "body"), checkEmailExists)
 
 /**
  * @swagger
@@ -70,7 +80,7 @@ router.post('/register', schemaValidate(RegisterNewUserSchema, "body"), register
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/LoginRequest'
+ *             $ref: '#/components/schema /LoginRequest'
  *           examples:
  *             admin:
  *               summary: Admin account
@@ -96,7 +106,7 @@ router.post('/register', schemaValidate(RegisterNewUserSchema, "body"), register
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/login', login);
+authRouter.post('/login', authLimiter, schemaValidate(LoginSchema, "body"), login);
 
 /**
  * @swagger
@@ -131,7 +141,7 @@ router.post('/login', login);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/refresh-token', refreshToken);
+authRouter.post('/refresh', refreshToken);
 
 /**
  * @swagger
@@ -156,7 +166,7 @@ router.post('/refresh-token', refreshToken);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/logout', authenticate, logout);
+authRouter.post('/logout', authenticate, logout);
 
 /**
  * @swagger
@@ -213,7 +223,7 @@ router.post('/logout', authenticate, logout);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get('/profile', authenticate, getProfile);
+authRouter.get('/profile', authenticate, getProfile);
 
 /**
  * @swagger
@@ -261,7 +271,7 @@ router.get('/profile', authenticate, getProfile);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.put('/profile', authenticate, updateProfile);
+authRouter.put('/profile', authenticate, updateProfile);
 
 /**
  * @swagger
@@ -315,13 +325,28 @@ router.put('/profile', authenticate, updateProfile);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/change-password', authenticate, schemaValidate(ResetPasswordSchema, "body"), changePassword);
-router.post('/forgot', isAccountForgotExists, forgot)
-router.post('/reset-password',schemaValidate(ResetForgotPasswordSchema, 'validate'), resetPassword)
-router.post('/verify/:type', verifyMail) // sẽ gửi jwt chứa các loại thông tin đến, tùy vào type sẽ validate thông tin của người dùng
-router.post('/resend/:type', resendVerifyEmail)
-router.post('/google/checkpoint', googleSSOLogin)
-router.post('/facebook/checkpoint', facebookSSOLogin)
-// router.post('/facebook/callback', )
+authRouter.post('/change-password', authenticate, schemaValidate(ResetPasswordSchema, "body"), changePassword);
+authRouter.post('/forgot', schemaValidate(EmailSchema, "body"), redisValidate('forgot',cookieHelper.getServiceGmail), forgot)
+authRouter.post('/reset-password', schemaValidate(ResetForgotPasswordSchema, 'validate'), resetPassword)
+// Dùng mỗi cho việc verify tài khoản của người dùng
+authRouter.post('/register/verify-email', verifyMail) // sẽ gửi jwt chứa các loại thông tin đến, tùy vào type sẽ validate thông tin của người dùng
+authRouter.post('/sso/:provider', loginSSO)
+authRouter.post('/re-authenticate', authenticate, reAuthenticate)
+// Route này dùng cho việc verify sso access token only
+// authRouter.post('/sso/:provider/verify')
+authRouter.get('/me', authenticate, checkSession)
+// cần check lại resend
+authRouter.post('/resend/:type', redisValidate((req) => req.params.type, cookieHelper.getServiceGmail), resendVerifyEmail)
+authRouter.post('/logout-all', authenticate, removeAllDevices)
 
-module.exports = router;
+authRouter.post('/2fa/login/verify', authenticate2FA, schemaValidate(twoFactorSchema, "body"), twoFactorVerify )
+authRouter.post('/2fa/login/backup-codes/verify', authenticate2FA,schemaValidate(twoFactorSchema, "body"), twoFactorBackupCodeVerify)
+// Dùng để xác nhập otp từ authenticator app
+authRouter.post('/2fa/verify', schemaValidate(twoFactorSchema, "body"), authenticate, twoFactorVerify)
+// Sử dụng backup code để verify ( Trường hợp user không available trong tài khoản => không cần authenticate)
+authRouter.post('/2fa/backup-codes/verify', authenticate,schemaValidate(twoFactorSchema, "body"),  twoFactorBackupCodeVerify)
+// Regen backup codes, vô hiệu hóa tất cả backup codes cũ
+authRouter.post('/2fa/backup-codes/regenerate', authenticate, twoFactorBackupCodeRegenerate)
+// router.post('/facebook/callback', 
+
+module.exports = authRouter;

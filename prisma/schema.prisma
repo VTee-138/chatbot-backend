@@ -10,8 +10,7 @@ datasource db {
 
 model User {
   id                        String                      @id @default(cuid())
-  fullName                  String?
-  email                     String                      @unique
+  email                     String?                     @unique
   avatarUrl                 String?
   passwordHash              String?
   emailVerifiedAt           DateTime?
@@ -21,6 +20,8 @@ model User {
   twoFactorBackupCodes      String[]
   twoFactorEnabled          Boolean                     @default(false)
   twoFactorSecret           String?
+  phoneNumber               String?
+  userName                  String?                     @unique
   email_verification_tokens email_verification_tokens[]
   group_members             group_members[]
   groups                    groups[]
@@ -29,16 +30,16 @@ model User {
   sessions                  sessions[]
   ssoAccounts               ssoAccount[]
 
-  @@map("users")
+  @@map("users")  
 }
 
 model ssoAccount {
   provider       String
   userId         String
-  providerUserId String
+  providerId     String
   user           User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@id([provider, providerUserId])
+  @@id([provider, providerId])
   @@map("sso_accounts")
 }
 
@@ -177,9 +178,9 @@ model group_members {
 model groups {
   id                String             @id
   name              String
-  slug              String             @unique
+  slug              String             @unique // url-friendly name, dùng truy cập nhanh
   logoUrl           String?
-  creatorId         String
+  creatorId         String  
   createdAt         DateTime           @default(now())
   updatedAt         DateTime
   autoAssignEnabled Boolean            @default(false)
@@ -244,7 +245,7 @@ model plans {
 }
 
 model sessions {
-  id               String   @id
+  id               String   @id @default(cuid())
   userId           String
   refreshTokenHash String   @unique
   expiresAt        DateTime
@@ -252,6 +253,7 @@ model sessions {
   ipAddress        String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime
+  deviceId         String   @default(cuid())
   users            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
