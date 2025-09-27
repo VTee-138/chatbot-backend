@@ -77,9 +77,9 @@ const createGroup = catchAsync(async (req, res) => {
  * Get user's groups
  */
 const getUserGroups = catchAsync(async (req, res) => {
-  const clientId = cookieHelper.getClientId(req)
-  const groups = await groupDBServices.getMemberships(clientId)
-
+  // const clientId = cookieHelper.getClientId(req)
+  const groups = await groupDBServices.getMemberships('cmfmj99ph0000upx88pjfrot4')
+  console.log(groups)
   
   const memberships = groups.map(group => ({
     id: group.groups.id,
@@ -93,7 +93,7 @@ const getUserGroups = catchAsync(async (req, res) => {
   }));
   
   const response = {
-    userId: clientId,
+    userId: 'cmfmj99ph0000upx88pjfrot4',
     total: memberships.length,
     groups: memberships
   }
@@ -101,10 +101,10 @@ const getUserGroups = catchAsync(async (req, res) => {
 });
 
 /**
- * Get group by ID
- */
-const getGroupById = catchAsync(async (req, res) => {
-  const { groupId } = req.params;
+ * Get g  const group = await groupDBServices.getGroupById(groupId);
+       apiKeys: true,
+        },
+      },
   
   const group = await prisma.group.findUnique({
     where: { id: groupId },
@@ -142,6 +142,9 @@ const getGroupById = catchAsync(async (req, res) => {
   
   if (!group) {
     return errorResponse(res, 'Group not found', 404);
+  }
+  
+ 'Group not found', 404);
   }
   
   return successResponse(res, group, 'Group retrieved successfully');
@@ -199,25 +202,24 @@ const deleteGroup = catchAsync(async (req, res) => {
 /**
  * Get group members
  */
-const getGroupMembers = catchAsync(async (req, res) => {
-  const { groupId } = req.params;
-  const member = await groupDBServices.getGroupMembers(groupId)
-  const memberTotal = await groupDBServices.getTotalMembersOfGroup(groupId)
-  const response = {
-    total : memberTotal,
-    members: {
-      memberId: member.id, // ID của bản ghi group_members
-      userId: member.users.id, // ID trong bảng user
-      email: member.users.email,
-      name: member.users.userName,
-      avatarUrl: member.users.avatarUrl,
-      role: member.role,
-      joinedAt: member.createdAt, 
+  const getGroupMembers = catchAsync(async (req, res) => {
+    const  groupId  = req.params.grId;
+    const members = await groupDBServices.getGroupMembers(groupId)
+    const memberTotal = await groupDBServices.getTotalMembersOfGroup(groupId)
+    const response = {
+      total : memberTotal,
+      members: members.map(m => ({
+        memberId: m.id,
+        userId: m.users.id,
+        email: m.users.email,
+        name: m.users.userName,
+        avatarUrl: m.users.avatarUrl,
+        role: m.role,
+        joinedAt: m.createdAt,
+      }))
     }
-  }
-  
-  return successResponse(res, response);
-});
+    return successResponse(res, response);
+  });
 
 /**
  * Invite user to group
@@ -287,12 +289,12 @@ const inviteMember = catchAsync(async (req, res) => {
  * Update member role
  */
 const updateMemberRole = catchAsync(async (req, res) => {
-  const { grId, memberId } = req.params;
+  const  grId  = req.params.grId;
+  const memberId = req.params.memberId
   const { role } = req.body;
-
   // Check owner 
-  const groupOwner = groupDBServices.getGroupById(grId)
-
+  const groupOwner = await groupDBServices.getGroupById(grId)
+  
   if (groupOwner.creatorId === memberId) {
     return errorResponse(res, 'Nonsense Request', Constants.BAD_REQUEST);
   }
@@ -350,7 +352,6 @@ const leaveGroup = catchAsync(async (req, res) => {
 module.exports = {
   createGroup,
   getUserGroups,
-  getGroupById,
   updateGroup,
   deleteGroup,
   getGroupMembers,

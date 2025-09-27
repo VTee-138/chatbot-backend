@@ -2,13 +2,12 @@ const express = require('express');
 const {
   createApiKey,
   getUserApiKeys,
-  getOrganizationApiKeys,
+  getGroupApiKeys,
   getApiKeyById,
   updateApiKey,
   regenerateApiKey,
   deleteApiKey,
   getApiKeyUsage,
-  getGroupApiKeys,
 } = require('../controllers/apiKeyController');
 const { authenticate, requireGroupMember } = require('../middleware/auth');
 

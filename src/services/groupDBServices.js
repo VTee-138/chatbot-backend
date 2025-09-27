@@ -1,11 +1,11 @@
 const prisma = require("../config/database");
-const { catchAsync } = require("../utils/response")
+const { ErrorResponse, Constants } = require("../utils/constant");
 
 class groupDBService{
-    getGroupMembers = catchAsync(async (groupId) =>{
+    async getGroupMembers(groupId) {
         return await prisma.group_members.findMany({
             where: {
-                groupId
+                groupId:groupId
             },
             include: {
                 users: { 
@@ -17,26 +17,44 @@ class groupDBService{
                     },
                 },
             },
-            });
-    })
-    getGroupById = catchAsync (async (groupId) => {
-        return await prisma.groups.findUnique({
+        });
+    }
+    async getGroupById(groupId) {
+        const group = await prisma.groups.findUnique({
             where: { id: groupId }
         })
-    })
-    getOwnerGroupById = catchAsync (async (groupId) => {
-        return await prisma.groups.findUnique({
+        if (!group) {
+            throw new ErrorResponse("Group not found", Constants.NOT_FOUND);
+        }
+        return group;
+    }
+    async getOwnerGroupById(groupId) {
+        const group = await prisma.groups.findUnique({
             where: { id:  groupId },
             select: { creatorId: true }
         })
-    })
-    getTotalMembersOfGroup = catchAsync(async (groupId) => {
-        return await prisma.group_members.count({
+        if (!group) {
+            throw new ErrorResponse("Group not found", Constants.NOT_FOUND);
+        }
+        return group;
+    }
+    async getMemberRole(memberId, groupId) {
+        const member = await prisma.group_members.findUnique({
+            where: { id: memberId, groupId: groupId },
+        })
+        if (!member) {
+            throw new ErrorResponse("Member not found", Constants.NOT_FOUND);
+        }
+        return member;
+    }
+    async getTotalMembersOfGroup(groupId) {
+        const cnt = await prisma.group_members.count({
             where: { groupId: groupId }
         });
-    })  
-    getMemberInformation = catchAsync(async (userId, groupId) =>{ 
-        return await prisma.group_members.findUnique({
+        return cnt
+    }
+    async getMemberInformation(userId, groupId) {
+        const member = await prisma.group_members.findUnique({
             where: {
                 userId_groupId: { 
                     userId,
@@ -54,8 +72,12 @@ class groupDBService{
                 },
             },
         })
-    })
-    getMemberships = catchAsync(async (userId) =>{ 
+        if (!member) {
+            throw new ErrorResponse("Member information not found", Constants.NOT_FOUND);
+        }
+        return member;
+    }
+    async getMemberships(userId) {
         return await prisma.group_members.findMany({
             where: {
                 userId
@@ -64,8 +86,8 @@ class groupDBService{
                 groups: true, 
             },
         });
-    })
-    updateMemberRoleById = catchAsync (async (role, memberId, groupId) => {
+    }
+    async updateMemberRoleById(role, memberId, groupId) {
         return await prisma.group_members.update({
         where: {
             id: memberId,
@@ -76,19 +98,19 @@ class groupDBService{
             updatedAt: new Date(),
         },
         });
-    })
-    deleteMember = catchAsync (async (memberId, groupId) =>{
+    }
+    async deleteMember(memberId, groupId) {
         return await prisma.group_members.delete({
             where: {
                 id: memberId,
                 groupId: groupId,
             }
         })
-    })
-    deleteGroup = catchAsync (async (groupId) => {
+    }
+    async deleteGroup(groupId) {
         return await prisma.groups.delete({
             where: { id: groupId },
         });
-    })
+    }
 }
 module.exports = new groupDBService()

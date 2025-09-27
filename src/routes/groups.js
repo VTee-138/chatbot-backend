@@ -165,7 +165,7 @@ groupRouter.post('/', authenticate, createGroup);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-groupRouter.get('/', authenticate, getUserGroups);
+groupRouter.get('/', getUserGroups);
 
 /**
  * @swagger
@@ -215,99 +215,98 @@ groupRouter.get('/', authenticate, getUserGroups);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-groupRouter.get(
-  '/:grId',
-  authenticate,
-  requireGroupMember(['OWNER', 'ADMIN', 'MEMBER']),
-  getGroupById
-);
-groupRouter.get('/api/v1/groups/:grId/members', authenticate,
-  requireGroupMember(['OWNER', 'ADMIN', 'MEMBER']), getGroupMembers)
-groupRouter.patch('/api/v1/groups/:grId/members/:memberId', authenticate, requireGroupMember(['OWNER', 'ADMIN', 'MEMBER']), updateMemberRole)
-groupRouter.delete('/api/v1/groups/:grId/members/:memberId', authenticate,requireGroupMember(['OWNER', 'ADMIN']), removeMember)
-groupRouter.get('/api/v1/groups', authenticate, requireGroupMember(['OWNER', 'ADMIN', 'MEMBER']), getUserGroups)
-/**
- * @route   PUT /api/v1/Groups/:GroupId
- * @desc    Update Group
- * @access  Private (Group Admin/Owner)
- */
-groupRouter.put(
-  '/:grId',
-  authenticate,
-  requireGroupMember(['OWNER', 'ADMIN']),
-  updateGroup
-);
+// groupRouter.get(
+//   '/:grId',
+//   authenticate,
+//   requireGroupMember(['OWNER', 'ADMIN', 'MEMBER']),
+//   getGroupById
+// );
+groupRouter.get('/:grId/members', 
+   getGroupMembers)
+groupRouter.patch('/:grId/members/:memberId',   updateMemberRole)
+groupRouter.delete('/:grId/members/:memberId', removeMember)
+// /**
+//  * @route   PUT /api/v1/Groups/:GroupId
+//  * @desc    Update Group
+//  * @access  Private (Group Admin/Owner)
+//  */
+// groupRouter.put(
+//   '/:grId',
+//   authenticate,
+//   requireGroupMember(['OWNER', 'ADMIN']),
+//   updateGroup
+// );
 
-/**
- * @route   DELETE /api/v1/Groups/:GroupId
- * @desc    Delete Group
- * @access  Private (Group Owner)
- */
-groupRouter.delete(
-  '/:grId',
-  authenticate,
-  requireGroupMember(['OWNER']),
-  deleteGroup
-);
+// /**
+//  * @route   DELETE /api/v1/Groups/:GroupId
+//  * @desc    Delete Group
+//  * @access  Private (Group Owner)
+//  */
+// groupRouter.delete(
+//   '/:grId',
+//   authenticate,
+//   requireGroupMember(['OWNER']),
+//   deleteGroup
+// );
 
-/**
- * @route   GET /api/v1/Groups/:GroupId/members
- * @desc    Get Group members
- * @access  Private (Group Member)
- */
-groupRouter.get(
-  '/:grId/members',
-  authenticate,
-  requireGroupMember(['OWNER', 'ADMIN', 'MEMBER', 'VIEWER']),
-  getGroupMembers
-);
+// /**
+//  * @route   GET /api/v1/Groups/:GroupId/members
+//  * @desc    Get Group members
+//  * @access  Private (Group Member)
+//  */
+// groupRouter.get(
+//   '/:grId/members',
+//   authenticate,
+//   requireGroupMember(['OWNER', 'ADMIN', 'MEMBER', 'VIEWER']),
+//   getGroupMembers
+// );
 
-/**
- * @route   POST /api/v1/Groups/:GroupId/members
- * @desc    Invite member to Group
- * @access  Private (Group Admin/Owner)
- */
-groupRouter.post(
-  '/:GroupId/members',
-  authenticate,
-  requireGroupMember(['OWNER', 'ADMIN']),
-  inviteMember
-);
+// /**
+//  * @route   POST /api/v1/Groups/:GroupId/members
+//  * @desc    Invite member to Group
+//  * @access  Private (Group Admin/Owner)
+//  */
+// groupRouter.post(
+//   '/:GroupId/members',
+//   authenticate,
+//   requireGroupMember(['OWNER', 'ADMIN']),
+//   inviteMember
+// );
 
-/**
- * @route   PUT /api/v1/Groups/:GroupId/members/:userId
- * @desc    Update member role
- * @access  Private (Group Owner)
- */
-groupRouter.put(
-  '/:GroupId/members/:userId',
-  authenticate,
-  requireGroupMember(['OWNER']),
-  updateMemberRole
-);
+// /**
+//  * @route   PUT /api/v1/Groups/:GroupId/members/:userId
+//  * @desc    Update member role
+//  * @access  Private (Group Owner)
+//  */
+// groupRouter.put(
+//   '/:GroupId/members/:userId',
+//   authenticate,
+//   requireGroupMember(['OWNER']),
+//   updateMemberRole
+// );
 
-/**
- * @route   DELETE /api/v1/Groups/:GroupId/members/:userId
- * @desc    Remove member from Group
- * @access  Private (Group Admin/Owner)
- */
-groupRouter.delete(
-  '/:GroupId/members/:userId',
-  authenticate,
-  requireGroupMember(['OWNER', 'ADMIN']),
-  removeMember
-);
+// /**
+//  * @route   DELETE /api/v1/Groups/:GroupId/members/:userId
+//  * @desc    Remove member from Group
+//  * @access  Private (Group Admin/Owner)
+//  */
+// groupRouter.delete(
+//   '/:GroupId/members/:userId',
+//   authenticate,
+//   requireGroupMember(['OWNER', 'ADMIN']),
+//   removeMember
+// );
 
-/**
- * @route   POST /api/v1/Groups/:GroupId/leave
- * @desc    Leave Group
- * @access  Private (Group Member)
- */
-groupRouter.post(
-  '/:GroupId/leave',
-  authenticate,
-  requireGroupMember(['ADMIN', 'MEMBER', 'VIEWER']),
-  leaveGroup
-);
+// /**
+//  * @route   POST /api/v1/Groups/:GroupId/leave
+//  * @desc    Leave Group
+//  * @access  Private (Group Member)
+//  */
+// groupRouter.post(
+//   '/:GroupId/leave',
+//   authenticate,
+//   requireGroupMember(['ADMIN', 'MEMBER', 'VIEWER']),
+//   leaveGroup
+// );
 
 module.exports = groupRouter;
