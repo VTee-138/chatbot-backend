@@ -10,68 +10,74 @@ const cookieHelper = require('../utils/cookieHelper');
  * Create new group
  */
 const createGroup = catchAsync(async (req, res) => {
+  console.log(req.user.id);
   const { name, description, logo } = req.body;
-  
+
+  if (!name) {
+    return errorResponse(res, "Group name is required", 400);
+  }
+
   // Create slug from name
   let slug = createSlug(name);
-  
+
   // Ensure slug is unique
-  let slugExists = await prisma.group.findUnique({ where: { slug } });
+  let slugExists = await prisma.groups.findUnique({ where: { slug } });
   let slugSuffix = 1;
-  
+
   while (slugExists) {
     slug = `${createSlug(name)}-${slugSuffix}`;
-    slugExists = await prisma.group.findUnique({ where: { slug } });
+    slugExists = await prisma.groups.findUnique({ where: { slug } });
     slugSuffix++;
   }
-  
+  console.log(crypto.randomUUID());
   // Create group with creator as owner
-  const group = await prisma.group.create({
+  const group = await prisma.groups.create({
     data: {
+      id: crypto.randomUUID(),
       name,
       slug,
-      description,
-      logo,
+      logoUrl: logo,
       creatorId: req.user.id,
-      members: {
+      updatedAt: new Date(),
+      group_members: {
         create: {
+          id: crypto.randomUUID(),
           userId: req.user.id,
           role: 'OWNER',
+          updatedAt: new Date(),  // phải thêm
         },
       },
     },
     include: {
-      creator: {
+      users: {
         select: {
           id: true,
           email: true,
-          firstName: true,
-          lastName: true,
-        },
+          userName: true,
+          avatarUrl: true
+        }
       },
-      members: {
+      group_members: {
         include: {
-          user: {
+          users: {
             select: {
               id: true,
-              email: true,
-              firstName: true,
-              lastName: true,
             },
           },
         },
       },
       _count: {
         select: {
-          members: true,
-          apiKeys: true,
+          group_members: true,
+          ai_usage_logs: true,
         },
       },
     },
   });
-  
+
   return successResponse(res, group, 'Group created successfully', 201);
 });
+
 
 /**
  * Get user's groups
@@ -79,8 +85,8 @@ const createGroup = catchAsync(async (req, res) => {
 const getUserGroups = catchAsync(async (req, res) => {
   const clientId = cookieHelper.getClientId(req)
   const groups = await groupDBServices.getMemberships(clientId)
-
-  
+  console.log(clientId);
+  console.log(groups);
   const memberships = groups.map(group => ({
     id: group.groups.id,
     name: group.groups.name,
@@ -91,7 +97,7 @@ const getUserGroups = catchAsync(async (req, res) => {
     createdAt: group.groups.createdAt,
     updatedAt: group.groups.updatedAt,
   }));
-  
+
   const response = {
     userId: clientId,
     total: memberships.length,
@@ -105,7 +111,7 @@ const getUserGroups = catchAsync(async (req, res) => {
  */
 const getGroupById = catchAsync(async (req, res) => {
   const { groupId } = req.params;
-  
+
   const group = await prisma.group.findUnique({
     where: { id: groupId },
     include: {
@@ -139,11 +145,11 @@ const getGroupById = catchAsync(async (req, res) => {
       },
     },
   });
-  
+
   if (!group) {
     return errorResponse(res, 'Group not found', 404);
   }
-  
+
   return successResponse(res, group, 'Group retrieved successfully');
 });
 
@@ -153,7 +159,7 @@ const getGroupById = catchAsync(async (req, res) => {
 const updateGroup = catchAsync(async (req, res) => {
   const { groupId } = req.params;
   const { name, description, logo } = req.body;
-  
+
   // Update group
   const group = await prisma.group.update({
     where: { id: groupId },
@@ -180,7 +186,7 @@ const updateGroup = catchAsync(async (req, res) => {
       },
     },
   });
-  
+
   return successResponse(res, group, 'Group updated successfully');
 });
 
@@ -189,10 +195,10 @@ const updateGroup = catchAsync(async (req, res) => {
  */
 const deleteGroup = catchAsync(async (req, res) => {
   const { groupId } = req.params;
-  
+
   // Delete group (cascade will handle members, api keys, etc.)
   await groupDBServices.deleteGroup(groupId)
-  
+
   return successResponse(res, null, 'Group deleted successfully');
 });
 
@@ -204,7 +210,7 @@ const getGroupMembers = catchAsync(async (req, res) => {
   const member = await groupDBServices.getGroupMembers(groupId)
   const memberTotal = await groupDBServices.getTotalMembersOfGroup(groupId)
   const response = {
-    total : memberTotal,
+    total: memberTotal,
     members: {
       memberId: member.id, // ID của bản ghi group_members
       userId: member.users.id, // ID trong bảng user
@@ -212,10 +218,10 @@ const getGroupMembers = catchAsync(async (req, res) => {
       name: member.users.userName,
       avatarUrl: member.users.avatarUrl,
       role: member.role,
-      joinedAt: member.createdAt, 
+      joinedAt: member.createdAt,
     }
   }
-  
+
   return successResponse(res, response);
 });
 
@@ -225,7 +231,7 @@ const getGroupMembers = catchAsync(async (req, res) => {
 const inviteMember = catchAsync(async (req, res) => {
   const { groupId } = req.params;
   const { email, role = 'MEMBER' } = req.body;
-  
+
   // Find user by email
   const user = await prisma.user.findUnique({
     where: { email },
@@ -237,15 +243,15 @@ const inviteMember = catchAsync(async (req, res) => {
       isActive: true,
     },
   });
-  
+
   if (!user) {
     return errorResponse(res, 'User with this email not found', 404);
   }
-  
+
   if (!user.isActive) {
     return errorResponse(res, 'User account is disabled', 400);
   }
-  
+
   // Check if user is already a member
   const existingMembership = await prisma.groupMember.findUnique({
     where: {
@@ -255,11 +261,11 @@ const inviteMember = catchAsync(async (req, res) => {
       },
     },
   });
-  
+
   if (existingMembership) {
     return errorResponse(res, 'User is already a member of this group', 409);
   }
-  
+
   // Create membership
   const membership = await prisma.groupMember.create({
     data: {
@@ -279,7 +285,7 @@ const inviteMember = catchAsync(async (req, res) => {
       },
     },
   });
-  
+
   return successResponse(res, membership, 'Member invited successfully', 201);
 });
 
@@ -304,9 +310,9 @@ const updateMemberRole = catchAsync(async (req, res) => {
 /**
  * Remove member from group
  */
-const removeMember = catchAsync(async (req, res) => { 
+const removeMember = catchAsync(async (req, res) => {
   const { grId, memberId } = req.params;
-  
+
   // Cannot remove group creator
   const owner = groupDBServices.getOwnerGroupById(grId)
   if (owner.creatorId === memberId) {
@@ -314,7 +320,7 @@ const removeMember = catchAsync(async (req, res) => {
   }
   // Remove
   await groupDBServices.deleteMember(memberId, grId)
-  
+
   return successResponse(res, null, 'Member removed successfully');
 });
 
@@ -323,17 +329,17 @@ const removeMember = catchAsync(async (req, res) => {
  */
 const leaveGroup = catchAsync(async (req, res) => {
   const { groupId } = req.params;
-  
+
   // Cannot leave if user is the creator
   const group = await prisma.group.findUnique({
     where: { id: groupId },
     select: { creatorId: true },
   });
-  
+
   if (group.creatorId === req.user.id) {
     return errorResponse(res, 'Group creator cannot leave. Transfer ownership or delete group.', 400);
   }
-  
+
   // Remove membership
   await prisma.groupMember.delete({
     where: {
@@ -343,7 +349,7 @@ const leaveGroup = catchAsync(async (req, res) => {
       },
     },
   });
-  
+
   return successResponse(res, null, 'Left group successfully');
 });
 

@@ -2,6 +2,7 @@ const { verifyToken } = require('../utils/jwt');
 const { errorResponse, httpOnlyRevoke, catchAsync } = require('../utils/response');
 const prisma = require('../config/database');
 const redis = require('../config/redis');
+const process = require('../config');
 const { ErrorResponse, Constants } = require('../utils/constant');
 const cookieHelper = require('../utils/cookieHelper');
 const userCredentialModel = require('../model/userCredentialModel');
@@ -13,30 +14,53 @@ const groupDBServices = require('../services/groupDBServices');
  */
 const authenticate = async (req, res, next) => {
   try {
+    if (process.NODE_ENV === 'development') {
+      req.user = { id: 'cmfmj99ph0000upx88pjfrot4', email: 'local@test.com' };
+      req.mfa = true // fake user
+      return next();
+    }
+
     const authHeader = req.headers.authorization;
-    
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return errorResponse(res, 'Access token is required', 401);
     }
-    if (!req.cookies.clientInformation) throw new ErrorResponse(Constants.MESSAGES._UNAUTHORIZED, Constants.UNAUTHORIZED)
+
+    if (!req.cookies.clientInformation) {
+      throw new ErrorResponse(Constants.MESSAGES._UNAUTHORIZED, Constants.UNAUTHORIZED);
+    }
+
     const token = authHeader.substring(7);
+
     try {
       const decoded = verifyToken(token, 'access');
-      const clientId = cookieHelper.getClientId(req)
-      if (clientId !== decoded.id) throw new ErrorResponse(Constants.MESSAGES._UNAUTHORIZED, Constants.UNAUTHORIZED)
+      const clientId = cookieHelper.getClientId(req);
+      if (clientId !== decoded.id) {
+        throw new ErrorResponse(Constants.MESSAGES._UNAUTHORIZED, Constants.UNAUTHORIZED);
+      }
+
+      // 👇 Quan trọng: gắn user vào request
+      req.user = {
+        id: decoded.id,
+        email: decoded.email, // nếu có
+        role: decoded.role || null,
+      };
+
       next();
-    } 
-    catch (jwtError) {
-      console.error("ERROR JWT MIDDLEWARE: ", jwtError.message)
+    } catch (jwtError) {
+      console.error("ERROR JWT MIDDLEWARE: ", jwtError.message);
       return errorResponse(res, 'Invalid or expired token', 401); 
     }
-  } 
-  catch (error) {
+  } catch (error) {
     console.error('Authentication error:', error);
     return errorResponse(res, 'Authentication failed', 500);
   }
 };
 const authenticate2FA = catchAsync(async (req, res, next) => {
+    if (process.NODE_ENV === 'development') {
+      req.user = { id: 'cmfmj99ph0000upx88pjfrot4', email: 'local@test.com' };
+      req.mfa = true // fake user
+      return next();
+    }
   let token;
   // Lấy token từ header Authorization: Bearer <token>
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
@@ -63,6 +87,9 @@ const authenticate2FA = catchAsync(async (req, res, next) => {
  * @param {Array} roles - Allowed roles
  */
 const authorize = (roles = []) => {
+  if (process.env.NODE_ENV === 'development') {
+    return next();
+  }
   return (req, res, next) => {
     if (!req.user) {
       return errorResponse(res, 'Authentication required', 401);
@@ -78,6 +105,9 @@ const authorize = (roles = []) => {
  * API Key authentication middleware
  */
 const authenticateApiKey = async (req, res, next) => {
+  if (process.env.NODE_ENV === 'development') {
+    return next();
+  }
   try {
     const apiKey = req.headers['x-api-key'];
     

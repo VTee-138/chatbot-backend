@@ -58,7 +58,7 @@ class groupDBService{
     getMemberships = catchAsync(async (userId) =>{ 
         return await prisma.group_members.findMany({
             where: {
-                userId
+                userId:userId
             },
             include: {
                 groups: true, 
