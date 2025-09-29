@@ -15,7 +15,7 @@ const { getInvitations, revokeInvitation } = require('../controllers/invitationC
 
 const groupRouter = express.Router();
 
-// [ ]
+// [x ]
 groupRouter.post(
   '/', 
   authenticate, 
@@ -42,7 +42,7 @@ groupRouter.get(
   getGroupMembers
 );
 
-// [ ]
+// [ x]
 // Update thông tin group
 groupRouter.put(
   '/:id',
@@ -50,7 +50,7 @@ groupRouter.put(
   requireGroupMember(['OWNER', 'ADMIN']),
   updateGroup
 );
-// [ ] => Chưa có Route này
+// [ x] => Chưa có Route này
 // groupRouter.delete(
 //   '/:id',
 //   authenticate,
@@ -58,19 +58,21 @@ groupRouter.put(
 //   deleteGroup
 // );
 
-// [ ]
+// [x ]
 groupRouter.post(
   '/:id/invite',
   authenticate,
   requireGroupMember(['OWNER', 'ADMIN']),
   inviteMember
 );
+// [x]
 groupRouter.get(
   '/:id/invite', 
   authenticate,
   requireGroupMember(['OWNER', 'ADMIN']),
   getInvitations
 )
+// [x]
 groupRouter.delete(
   ':id/invite/:invitationId',
   authenticate,

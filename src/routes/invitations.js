@@ -5,7 +5,6 @@ const {
     revokeInvitation,
 } = require('../controllers/invitationController');
 const { authenticate } = require('../middleware/auth');
-const { successResponse } = require('../utils/response');
 
 const invitationRouter = express.Router();
 

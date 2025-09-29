@@ -6,7 +6,7 @@ const zaloRouter = require('./zaloRouter');
 const authRouter = require('./auth');
 const userRouter = require('./userRouter');
 const groupRouter = require('./groups');
-const InvitationRoutes = require("./invitationRoutes");
+const invitationRouter = require('./invitations');
 const router = express.Router();
 // Health check endpoint
 router.get('/health', (req, res) => {
@@ -26,6 +26,5 @@ router.use('/invitations', invitationRouter)
 router.use('/groups', groupRouter);
 router.use('/api-keys', apiKeyRoutes);
 router.use('/zalo', zaloRouter) 
-router.use("/invitations", InvitationRoutes);
 router.use('/me', userRouter)
 module.exports = router;
