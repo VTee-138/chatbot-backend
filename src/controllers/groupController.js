@@ -62,6 +62,7 @@ const createGroup = catchAsync(async (req, res, next) => {
   }
 });
 
+
 /**
  * Get user's groups
  */
@@ -131,7 +132,7 @@ const getUserGroups = catchAsync(async (req, res, next) => {
       },
     },
   });
-  
+
   if (!group) {
     return errorResponse(res, 'Group not found', 404);
   }

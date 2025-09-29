@@ -1,5 +1,5 @@
 const { Constants, ErrorResponse } = require("./constant")
-
+const process = require('../config');
 class CookieHelper {
     parseClientInfo(req) {
         try {
@@ -14,6 +14,9 @@ class CookieHelper {
         return clientInfo
     }
     getClientId(req) {
+        if(process.NODE_ENV == 'development') {
+            return req.user.id;
+        }
         const clientInfo = this.parseClientInfo(req)
         if (!clientInfo.id) throw new ErrorResponse(Constants.MESSAGES._UNAUTHORIZED, Constants.UNAUTHORIZED)
         return clientInfo.id
