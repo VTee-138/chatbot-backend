@@ -1,16 +1,31 @@
 /**
  * Tạo ra link xác thực cho để cho người dùng validate
- * @param {String} domain Domain của FE, dể khi redirect về đó thì FE sẽ gửi được thông tin cho BE
- * @param {EmailType} type Loại email được gửi đến cho người dùng
  * @param {String} code Mã token nằm ở cuối dành cho user
+ * @param {EmailType} type Loại email được gửi đến cho người dùng
+ * @param {String} domain Domain của FE, dể khi redirect về đó thì FE sẽ gửi được thông tin cho BE
  * 
  * @return {String} là link được gửi đính kèm trong email để người dùng valdiate
  * 
  * @example
  * //Send link forgot
- * linkVerifyingToSend('abc', EmailType.FORGOT, 'chatgpt.com') => "https://chatgpt.com=/forgot/auth/abc"
+ * linkVerifyingToSend('abc', EmailType.FORGOT, 'http://localhost:3000') => "http://localhost:3000/reset-password?token=abc"
+ * //Send link register
+ * linkVerifyingToSend('xyz', EmailType.REGISTER, 'http://localhost:3000') => "http://localhost:3000/verify-email?token=xyz"
  */
-const linkVerifyingToSend = (code, type, domain) => `Link xác thực của bạn là: https://${domain}/${type}/auth/code=${code}`
+const linkVerifyingToSend = (code, type, domain) => {
+    const baseUrl = domain || 'http://localhost:3000';
+    
+    switch (type) {
+        case EmailType.FORGOT:
+            return `${baseUrl}/quen-mat-khau/dat-lai-mat-khau?token=${code}`;
+        case EmailType.REGISTER:
+            return `${baseUrl}/verify-email?token=${code}`;
+        case EmailType.MFA:
+            return `${baseUrl}/verify-2fa?token=${code}`;
+        default:
+            return `${baseUrl}/verify?token=${code}`;
+    }
+}
 
 // HTML DESIGN
 // Lưu ý những file HTML chỉ nên có mỗi 
@@ -21,9 +36,12 @@ const htmlRegisterVerifiedLink = (link, user_email) => `
             Bạn vừa yêu cầu <strong>xác thực tài khoản mới</strong> cho tài khoản của mình.
             Nhấn vào liên kết bên dưới để tiếp tục quá trình:
         </p>
-        <div style="padding: 5px 5px; background: white; color: #fff; display: inline-block; border-radius: 10px; font-size: 16px; letter-spacing: 2px;">
-        <p style="color:white;">${link}</p>
+        <div style="text-align: center; margin: 20px 0;">
+            <a href="${link}" style="background: #7C3AED; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Xác Thực Tài Khoản</a>
         </div>
+        <p style="font-size: 12px; color: #888; margin-top: 10px;">
+            Hoặc copy link này: <span style="color: #7C3AED; word-break: break-all;">${link}</span>
+        </p>
         <p style="margin-top: 20px; font-size: 14px; color: #666;">
         Mã có hiệu lực trong 40 giây. Đừng chia sẻ mã này với bất kỳ ai.
         </p>
@@ -35,9 +53,12 @@ const htmlForgotVerifiedLink = (link, user_email) => `
         Bạn vừa yêu cầu <strong>đặt lại mật khẩu</strong> cho tài khoản của mình.
         Nhấn vào liên kết bên dưới để tiếp tục quá trình:
         </p>
-        <div style="padding: 5px 5px; background: white; color: #fff; display: inline-block; border-radius: 10px; font-size: 16px; letter-spacing: 2px;">
-            <p style="color:white;">${link}</p>
+        <div style="text-align: center; margin: 20px 0;">
+            <a href="${link}" style="background: #DC2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Đặt Lại Mật Khẩu</a>
         </div>
+        <p style="font-size: 12px; color: #888; margin-top: 10px;">
+            Hoặc copy link này: <span style="color: #DC2626; word-break: break-all;">${link}</span>
+        </p>
         <p style="margin-top: 20px; font-size: 14px; color: #666;">
         Liên kết này có hiệu lực trong 40 giây. Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.
         </p>

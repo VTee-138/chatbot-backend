@@ -56,6 +56,10 @@ module.exports = {
   // Facebok SSO
   FACEBOOK_APP_ID: process.env.FACEBOOK_APP_ID,
   FACEBOOK_APP_SECRET: process.env.FACEBOOK_APP_SECRET,
+  
+  // Turnstile CAPTCHA
+  TURNSTILE_SECRET: process.env.TURNSTILE_SECRET,
+  
   // Mail FE Link
   URL_MAIL_PUBLIC : process.env.URL_MAIL_PUBLIC
 }

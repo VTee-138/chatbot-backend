@@ -39,37 +39,64 @@ const verifyMail = catchAsync(async (req, res, next) => {
  */
 const register = catchAsync(async (req, res, next) => {
   try {
-    const userInformation = req.body; // Trong này sẽ có: phoneNumber, userName, passwordHash
-    const emailCookie = req.cookies.registerEmail
+    const { email, userName, password, phoneNumber, captchaToken } = req.body;
+    
+    // Import turnstile service
+    const { verifyTurnstileToken } = require('../services/turnstileService');
+    
+    // Verify CAPTCHA token first
+    const isCaptchaValid = await verifyTurnstileToken(captchaToken, req.ip);
+    if (!isCaptchaValid) {
+      return errorResponse(res, 'CAPTCHA verification failed', Constants.BAD_REQUEST);
+    }
+    
+    // Check if there's already a pending verification email for this email
+    const pendingVerification = await redis.get(`register:${email}`);
+    if (pendingVerification) {
+      return errorResponse(res, 'Vui lòng kiểm tra mail xác nhận để kích hoạt tài khoản!', Constants.BAD_REQUEST);
+    }
+    
     // Check if user already exists
-    const existingUser = await userCredentialModel.findUserByEmail(emailCookie)
+    const existingUser = await userCredentialModel.findUserByEmail(email)
     if (existingUser && existingUser.emailVerifiedAt) {
       return errorResponse(res, 'Tài khoản đã tồn tại', Constants.CONFLICT);
     }
-    
-    // Check if hacker try to jump step
-    if (!emailCookie) throw new ErrorResponse(Constants.MESSAGES._UNAUTHORIZED, Constants.UNAUTHORIZED)
       
-      // Check username exists?
-      const checker = await userCredentialModel.findAccountWithUserName(userInformation.userName)
-      if (checker) return errorResponse(res, 'Tên người dùng đã tồn tại', Constants.BAD_REQUEST)
+    // Check username exists?
+    const checker = await userCredentialModel.findAccountWithUserName(userName)
+    if (checker) return errorResponse(res, 'Tên người dùng đã tồn tại', Constants.BAD_REQUEST)
         
-        // Hash password
-        const hashedPassword = await hashPassword(userInformation.password);
-        const newUser = {
-          email: emailCookie,
-          passwordHash: hashedPassword.valueOf(),
-          phoneNumber: userInformation.phoneNumber,
-          userName: userInformation.userName
-        }
-        await userCredentialModel.registerNewUser(newUser)
+    // Hash password
+    const hashedPassword = await hashPassword(password);
+    const newUser = {
+      email: email,
+      passwordHash: hashedPassword.valueOf(),
+      phoneNumber: phoneNumber,
+      userName: userName
+    }
+    await userCredentialModel.registerNewUser(newUser)
         
-    const validateToken = generateToken({email: emailCookie}, 'validate')
-    await redis.set(`register:${emailCookie}`, validateToken, 'EX', Constants.TIME_PICKER._120secs)
+    const validateToken = generateToken({email: email}, 'validate')
+    await redis.set(`register:${email}`, validateToken, 'EX', Constants.TIME_PICKER._120secs)
     
     // Send email to verify
-    sendEmailToVerify(EmailType.REGISTER, config.URL_MAIL_PUBLIC, validateToken, emailCookie, '🚀 Link xác thực tài khoản đăng ký đã tới!', HtmlConverter.Forgot)
-    return successResponse(res, 'Đã đăng ký tài khoản thành công! Hãy vào email để xác thực tài khoản của bạn', 200);
+    try {
+      await sendEmailToVerify(EmailType.REGISTER, config.URL_MAIL_PUBLIC, validateToken, email, '🚀 Link xác thực tài khoản đăng ký đã tới!', HtmlConverter.Register)
+      
+      const message = config.NODE_ENV === 'development'
+        ? 'Đã đăng ký tài khoản thành công! (Development mode - check server logs for verification email)'
+        : 'Đã đăng ký tài khoản thành công! Hãy vào email để xác thực tài khoản của bạn'
+      
+      return successResponse(res, message, 200);
+    } catch (emailError) {
+      console.error("Registration email failed:", emailError)
+      
+      const message = config.NODE_ENV === 'development'
+        ? 'Tài khoản đã được tạo nhưng có lỗi email service. Check server logs for verification token.'
+        : 'Tài khoản đã được tạo. Nếu không nhận được email xác thực, vui lòng thử lại sau.'
+      
+      return successResponse(res, message, 200);
+    }
   } catch (error) {
     next(error)
   }
@@ -78,8 +105,17 @@ const register = catchAsync(async (req, res, next) => {
  * 
  */
 const checkEmailExists = catchAsync ( async ( req, res ) =>{
-  const { email } = req.body
+  const { email, captchaToken } = req.body
   try {
+    // Import turnstile service
+    const { verifyTurnstileToken } = require('../services/turnstileService');
+    
+    // Verify CAPTCHA token
+    const isCaptchaValid = await verifyTurnstileToken(captchaToken, req.ip);
+    if (!isCaptchaValid) {
+      return errorResponse(res, 'CAPTCHA verification failed', Constants.BAD_REQUEST);
+    }
+    
     const checker = await userCredentialModel.findUserByEmail(email)
     if (checker && checker.emailVerifiedAt) {
       return errorResponse(res, 'User with this email already in use', 409);
@@ -99,18 +135,27 @@ const checkEmailExists = catchAsync ( async ( req, res ) =>{
  */
 const login = catchAsync(async (req, res, next) => {
   // GET FIELD
-  const { userName, password } = req.body;
+  const { email, password, captchaToken } = req.body;
   try {
-    // Find user with password
-    const user = await userCredentialModel.findAccountWithUserName(userName)
-    // Tài khoản sso sẽ có một userName vậy nên nếu không tồn tại mật khẩu => không cho đăng nhập
+    // Import turnstile service
+    const { verifyTurnstileToken } = require('../services/turnstileService');
+    
+    // Verify CAPTCHA token first
+    const isCaptchaValid = await verifyTurnstileToken(captchaToken, req.ip);
+    if (!isCaptchaValid) {
+      return errorResponse(res, 'CAPTCHA verification failed', Constants.BAD_REQUEST);
+    }
+    
+    // Find user with password by email
+    const user = await userCredentialModel.findUserByEmail(email)
+    // Tài khoản sso sẽ có một email vậy nên nếu không tồn tại mật khẩu => không cho đăng nhập
     if (!user || !user.emailVerifiedAt || !user.passwordHash) {
-      return errorResponse(res, 'Tài khoản hoặc mật không hợp lệ', Constants.BAD_REQUEST);
+      return errorResponse(res, 'Email hoặc mật khẩu không hợp lệ', Constants.BAD_REQUEST);
     }
     // Verify password
     const isPasswordValid = await comparePassword(password, user.passwordHash);
     if (!isPasswordValid) {
-      return errorResponse(res, 'Mật khẩu của bạn không chính xác', Constants.BAD_REQUEST);
+      return errorResponse(res, 'Email hoặc mật khẩu không hợp lệ', Constants.BAD_REQUEST);
     }
     // Nếu 2FA có bật, tạo token mới để xác nhận việc xác nhận 2FA
     if (user.twoFactorEnabled) {
@@ -189,18 +234,49 @@ const refreshToken = catchAsync(async (req, res) => {
 /**
  * Forgot password account
  */
-const forgot = catchAsync( async(req, res) =>{
-  const { email } = req.body
+const forgot = catchAsync( async(req, res, next) =>{
+  const { email, captchaToken } = req.body
   try {
+    // Import turnstile service
+    const { verifyTurnstileToken } = require('../services/turnstileService');
+    
+    // Verify CAPTCHA token first
+    const isCaptchaValid = await verifyTurnstileToken(captchaToken, req.ip);
+    if (!isCaptchaValid) {
+      return errorResponse(res, 'CAPTCHA verification failed', Constants.BAD_REQUEST);
+    }
+    
+    // Check if there's already a pending forgot password email for this email
+    const pendingForgot = await redis.get(`forgot:${email}`);
+    if (pendingForgot) {
+      return errorResponse(res, 'Vui lòng kiểm tra mail xác nhận để kích hoạt tài khoản!', Constants.BAD_REQUEST);
+    }
+    
     // Verify có phải là một tài khoản Credential chính thức không
     await authService.validateForgotAccount(email)
     // Tạo token
     const token = generateToken({email}, 'validate')
     await redis.set(`forgot:${email}`, token, 'EX', Constants.TIME_PICKER._120secs)
     httpOnlyResponse(res, "forgotEmail", email, Constants.TIME_PICKER._1hour_ms)
-    // Send email
-    await sendEmailToVerify(EmailType.FORGOT, config.URL_MAIL_PUBLIC, token, email, '🚀 Link xác nhận quên mật khẩu đã tới!', HtmlConverter.Forgot)
-    return successResponse(res, 'Đã xác nhận yêu cầu thay đổi mật khẩu mới thành công! Vui lòng xác nhận yêu cầu trong email của bạn!', 200)
+    
+    try {
+      // Send email
+      await sendEmailToVerify(EmailType.FORGOT, config.URL_MAIL_PUBLIC, token, email, '🚀 Link xác nhận quên mật khẩu đã tới!', HtmlConverter.Forgot)
+      
+      const message = config.NODE_ENV === 'development' 
+        ? 'Yêu cầu đã được xử lý thành công! (Development mode - check server logs for email content)'
+        : 'Đã xác nhận yêu cầu thay đổi mật khẩu mới thành công! Vui lòng xác nhận yêu cầu trong email của bạn!'
+      
+      return successResponse(res, message, 200)
+    } catch (emailError) {
+      console.error("Email sending failed:", emailError)
+      // Vẫn trả về success vì đã lưu token, có thể retry sau
+      const message = config.NODE_ENV === 'development'
+        ? 'Yêu cầu đã được xử lý nhưng có lỗi email service. Check server logs.'
+        : 'Yêu cầu đã được xử lý. Nếu không nhận được email, vui lòng thử lại sau.'
+      
+      return successResponse(res, message, 200)
+    }
   } catch (error) {
     console.error("Forgot password error:", error)
     next(error)
@@ -305,41 +381,89 @@ const changePassword = catchAsync(async (req, res) => {
   return successResponse(res, null, 'Password changed successfully');
 });
 
-const resendVerifyEmail = catchAsync(async (req, res) =>{
+const resendVerifyEmail = catchAsync(async (req, res, next) =>{
   // GET FIELDS
   try {
     const { type } = req.params
-    const { jwt } = req.body
+    const { jwt, token } = req.body
+    const authToken = token || jwt; // Support both formats
     const email = cookieHelper.getServiceGmail(req)
-    if (!EmailTypeList.includes(type)) return errorResponse(res, 'Invalid type params', Constants.BAD_REQUEST)
+    
+    if (!EmailTypeList.includes(type)) {
+      return errorResponse(res, 'Invalid type params', Constants.BAD_REQUEST)
+    }
+    
+    if (!authToken) {
+      return errorResponse(res, 'Token is required', Constants.BAD_REQUEST)
+    }
   
     // SET CONTENT TO SEND MAIL
     const subject = type == EmailType.FORGOT? '🚀 Link xác nhận quên mật khẩu đã tới!': '🚀 Link xác thực tài khoản đăng ký đã tới!'
-    const htmlContent = type == EmailType.FORGOT? HtmlConverter.Forgot: HtmlConverter.Register
+    const htmlConverter = type == EmailType.FORGOT? HtmlConverter.Forgot: HtmlConverter.Register
     
-    const { iat, exp, ...decodedInformation } = verifyToken(jwt, "validate")
+    const { iat, exp, ...decodedInformation } = verifyToken(authToken, "validate")
     const newToken = generateToken( decodedInformation, 'validate')
     await redis.set(`${type}:${email}`, newToken, 'EX', Constants.TIME_PICKER._120secs)
     
     // Send Email
-    await sendEmailToVerify(type, config.URL_MAIL_PUBLIC, newToken, email, subject, htmlContent)
+    await sendEmailToVerify(type, config.URL_MAIL_PUBLIC, newToken, email, subject, htmlConverter)
     return successResponse(res, 'Đã nhận được yêu cầu của bạn, vui lòng xác nhận trong email!', 200)
   } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      return errorResponse(res, 'Token has expired', Constants.BAD_REQUEST)
+    }
+    if (error.name === 'JsonWebTokenError') {
+      return errorResponse(res, 'Invalid token', Constants.BAD_REQUEST)
+    }
     next(error)
   }
-  //... Để dành nếu còn nữa
-  
 })
 const resetPassword = catchAsync( async (req, res, next) => {
   try {
-    const { jwt, newPassword } = req.body
-    const { email } = verifyToken(jwt, 'validate')
+    // Support both 'token' and 'jwt' for compatibility
+    const { token, jwt, newPassword, confirmPassword } = req.body
+    const authToken = token || jwt; // Use 'token' if available, fallback to 'jwt'
+    
+    if (!authToken) {
+      return errorResponse(res, 'Token is required', Constants.BAD_REQUEST);
+    }
+    
+    if (!newPassword) {
+      return errorResponse(res, 'New password is required', Constants.BAD_REQUEST);
+    }
+    
+    // Optional: validate confirmPassword if provided
+    if (confirmPassword && newPassword !== confirmPassword) {
+      return errorResponse(res, 'Passwords do not match', Constants.BAD_REQUEST);
+    }
+    
+    // Verify and decode the token
+    const { email } = verifyToken(authToken, 'validate')
+    
+    // Check if token is still valid in Redis
+    const redisToken = await redis.get(`forgot:${email}`);
+    if (!redisToken) {
+      return errorResponse(res, 'Token has expired or is invalid', Constants.BAD_REQUEST);
+    }
+    
+    // Clean up: remove the used token
     await redis.del(`forgot:${email}`)
+    
+    // Hash and update password
     const hashedNewPassword = await hashPassword(newPassword);
     await userCredentialModel.updatePassword(email, hashedNewPassword.valueOf())
+    
+    // Clean up cookies
     httpOnlyRevoke(res, "forgotEmail")
-    return successResponse(res, 'Successful', 200)
+    
+    return successResponse(res, 'Password reset successfully', 200)
   } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      return errorResponse(res, 'Reset token has expired', Constants.BAD_REQUEST)
+    }
+    if (error.name === 'JsonWebTokenError') {
+      return errorResponse(res, 'Invalid reset token', Constants.BAD_REQUEST)
+    }
     next(error)
   }
 })
@@ -391,51 +515,112 @@ const createSSO = catchAsync (async (req, res) => {
 
 const loginSSO = catchAsync( async (req, res, next) => {
   const { provider } = req.params
-  const { accessToken } = req.body
+  const { accessToken, idToken } = req.body
+  
   try {
-    if (!accessToken) return errorResponse(res, "Yêu cầu không hợp lệ!", Constants.BAD_REQUEST)
-    if (!provider || !['google', 'facebook'].includes(provider))
+    // Validate provider
+    if (!provider || !['google', 'facebook'].includes(provider)) {
       return errorResponse(res, "Phương thức đăng nhập không được hỗ trợ. Vui lòng sử dụng Google hoặc Facebook", Constants.BAD_REQUEST)
-    
-    // Verify SSO Account
-    let user = null
-    if (provider == 'google') user = await authService.googleSSOLogin(accessToken)
-    else user = await authService.facebookSSOLogin(accessToken)
-
-    // Handle Verified Account
-    let userName = convertToAscii(user.userName)
-    let ssoUser = await userCredentialModel.findUserBySSO(provider, user.sub)
-
-    // If user hasn't been created
-    if (!ssoUser) {
-      const newUserName = await authService.generateUniqueUserName(userName)
-      const email = provider === 'google'? user.email : undefined
-      if (email && await userCredentialModel.findUserByEmail(email)) 
-      return errorResponse(res, 'User with this email already in use', 409)
-
-      ssoUser = await userCredentialModel.createSSOAccount(provider, user.sub, {
-        userName: newUserName,
-        email
-      })
     }
-    // Nếu 2FA có bật, tạo token mới để xác nhận việc xác nhận 2FA
+
+    // Validate token - support both accessToken and idToken for Google
+    const authToken = accessToken || idToken;
+    if (!authToken) {
+      return errorResponse(res, `${provider} token is required`, Constants.BAD_REQUEST)
+    }
+    
+    console.log(`🔐 SSO Login attempt with ${provider}`);
+    
+    // Verify SSO Account based on provider
+    let ssoProfile = null;
+    try {
+      if (provider === 'google') {
+        ssoProfile = await authService.googleSSOLogin(authToken);
+      } else if (provider === 'facebook') {
+        ssoProfile = await authService.facebookSSOLogin(authToken);
+      }
+    } catch (ssoError) {
+      console.error(`${provider} SSO verification failed:`, ssoError.message);
+      return errorResponse(res, `Invalid ${provider} token or authentication failed`, Constants.UNAUTHORIZED);
+    }
+
+    if (!ssoProfile || !ssoProfile.sub) {
+      return errorResponse(res, `Failed to get ${provider} profile information`, Constants.BAD_REQUEST);
+    }
+
+    console.log(`✅ ${provider} profile verified for user: ${ssoProfile.email || ssoProfile.sub}`);
+
+    // Check if SSO user already exists
+    let ssoUser = await userCredentialModel.findUserBySSO(provider, ssoProfile.sub);
+
+    // If user doesn't exist, create new SSO account
+    if (!ssoUser) {
+      console.log(`👤 Creating new ${provider} SSO account`);
+      
+      // Generate unique username from profile
+      let userName = convertToAscii(ssoProfile.userName || ssoProfile.name || `user_${ssoProfile.sub.slice(-8)}`);
+      const newUserName = await authService.generateUniqueUserName(userName);
+      
+      // For Google, we get email. For Facebook, email might not be available
+      const email = provider === 'google' ? ssoProfile.email : undefined;
+      
+      // Check if email already exists (for Google accounts)
+      if (email) {
+        const existingUser = await userCredentialModel.findUserByEmail(email);
+        if (existingUser && existingUser.emailVerifiedAt) {
+          return errorResponse(res, 'Email đã được sử dụng bởi tài khoản khác', Constants.CONFLICT);
+        }
+      }
+
+      // Create new SSO account
+      try {
+        ssoUser = await userCredentialModel.createSSOAccount(provider, ssoProfile.sub, {
+          userName: newUserName,
+          email: email,
+          firstName: ssoProfile.firstName || ssoProfile.given_name,
+          lastName: ssoProfile.lastName || ssoProfile.family_name,
+          avatar: ssoProfile.picture || ssoProfile.avatar
+        });
+        console.log(`✅ Created new ${provider} account for user: ${newUserName}`);
+      } catch (createError) {
+        console.error('Failed to create SSO account:', createError);
+        return errorResponse(res, 'Failed to create account', Constants.INTERNAL_SERVER_ERROR);
+      }
+    } else {
+      console.log(`🔄 Existing ${provider} user login: ${ssoUser.userName}`);
+    }
+
+    // Check if 2FA is enabled
     if (ssoUser.twoFactorEnabled) {
+      console.log(`🔒 2FA required for user: ${ssoUser.userName}`);
       const payload = {
         id: ssoUser.id,
         role: ssoUser.role
       }
-      const mfaToken = generateToken(payload, '2fa')
-      return successResponse(res, { "2FA Token": mfaToken }, "2FA required", Constants.OK)
+      const mfaToken = generateToken(payload, '2fa');
+      return successResponse(res, { 
+        twoFactorToken: mfaToken,
+        "2FA Token": mfaToken, // Keep for backward compatibility
+        requiresTwoFactor: true,
+        user: {
+          id: ssoUser.id,
+          userName: ssoUser.userName,
+          email: ssoUser.email
+        }
+      }, "2FA required", Constants.OK);
     }
-    // Nếu không thì gán user cho người tiếp theos
-    req.user = ssoUser
-    // Declare user for the open Session 
-    // Open account session twoFactorEnabled
-    return openSession(req, res, next)
+
+    // Proceed with normal login - create session
+    req.user = ssoUser;
+    console.log(`✅ ${provider} login successful for: ${ssoUser.userName}`);
+    
+    return openSession(req, res, next);
+    
   } catch (error) {
-      next(error)
-    }
-  })
+    console.error(`❌ SSO Login Error (${provider}):`, error.message);
+    next(error);
+  }
+})
 const checkSession = catchAsync ( async ( req, res ) => {
   // Get fields
   const token = cookieHelper.getRefreshToken(req)

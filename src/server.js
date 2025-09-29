@@ -1,3 +1,7 @@
+// Auto-setup environment before anything else
+const { setupEnvironment } = require('./utils/envSetup');
+setupEnvironment();
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -9,6 +13,8 @@ const { checkRedis } = require('./utils/checkConfiguration')
 const config = require('./config');
 const http = require("http");
 const routes = require('./routes/routes');
+const jwt = require('jsonwebtoken');
+const { OAuth2Client } = require('google-auth-library');
 const { Server } = require('socket.io');
 const { errorHandler, notFound, requestLogger } = require('./middleware');
 const { specs, swaggerUi, swaggerOptions } = require('./config/swagger');
