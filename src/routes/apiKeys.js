@@ -72,7 +72,7 @@ router.get('/:apiKeyId/usage', authenticate, getApiKeyUsage);
  * @access  Private (Group Member)
  */
 router.get(
-  '/Groups/:GroupId/api-keys',
+  '/groups/:id/api-keys',
   authenticate,
   requireGroupMember(['OWNER', 'ADMIN', 'MEMBER']),
   getGroupApiKeys

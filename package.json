@@ -12,6 +12,7 @@
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset",
     "db:seed": "node prisma/seed.js",
+    "db:country:seed": "node prisma/countrySeed.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "echo \"No linter configured\"",
     "build": "echo \"No build step needed for Node.js\""

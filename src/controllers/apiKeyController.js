@@ -94,14 +94,14 @@ const getUserApiKeys = catchAsync(async (req, res) => {
  * Get group API keys
  */
 const getGroupApiKeys = catchAsync(async (req, res) => {
-  const { groupId } = req.params;
+  const { id } = req.params;
   const { page = 1, limit = config.DEFAULT_PAGE_SIZE } = req.query;
   
   const skip = (page - 1) * limit;
   
   const [apiKeys, total] = await Promise.all([
     prisma.apiKey.findMany({
-      where: { groupId },
+      where: { groupId: id },
       skip,
       take: parseInt(limit),
       select: {
@@ -124,7 +124,7 @@ const getGroupApiKeys = catchAsync(async (req, res) => {
       },
       orderBy: { createdAt: 'desc' },
     }),
-    prisma.apiKey.count({ where: { groupId } }),
+    prisma.apiKey.count({ where: { groupId: id } }),
   ]);
   
   return paginatedResponse(res, apiKeys, total, parseInt(page), parseInt(limit));
@@ -186,7 +186,7 @@ const updateApiKey = catchAsync(async (req, res) => {
       rateLimit,
       isActive,
       expiresAt: expiresAt ? new Date(expiresAt) : null,
-      updatedAt: new Date(),
+
     },
     select: {
       id: true,
@@ -229,7 +229,6 @@ const regenerateApiKey = catchAsync(async (req, res) => {
     data: {
       key: newApiKey,
       keyHash: newKeyHash,
-      updatedAt: new Date(),
     },
     select: {
       id: true,

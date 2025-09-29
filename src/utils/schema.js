@@ -101,7 +101,8 @@ const EmailSchema = Joi.object({
   .email()
   .required()
   .messages({
-    "string.email": "Email không hợp lệ, Email là thông tin bắt buộc"
+    "string.email": "Email không hợp lệ, Email là thông tin bắt buộc",
+    "any.required": "Vui lòng nhập email"
   })
 })
 const LoginSchema = Joi.object({

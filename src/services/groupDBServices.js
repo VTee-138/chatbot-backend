@@ -1,7 +1,92 @@
+const { when } = require("joi");
 const prisma = require("../config/database");
 const { ErrorResponse, Constants } = require("../utils/constant");
 
 class groupDBService{
+    async createNewGroup(groups, creatorId){
+        return await prisma.groups.create({
+            data: {
+                name: groups.name,
+                slug: groups.slug,
+                logoUrl: groups.logoUrl,
+                creatorId: creatorId,
+                phoneContact: groups.phoneContact,
+                emailContact: groups.emailContact,
+                countryCode: groups.countryCode,
+                group_members: {
+                create: {
+                    userId: creatorId,
+                    role: 'OWNER'
+                },
+                },
+            },
+            include: {
+                users: { // creator
+                select: {
+                    id: true,
+                    email: true,
+                    userName: true,
+                    avatarUrl: true,
+                },
+                },
+                group_members: {
+                include: {
+                    users: {
+                    select: {
+                        id: true,
+                        email: true,
+                        userName: true,
+                        avatarUrl: true,
+                    },
+                    },
+                },
+                },
+                _count: {
+                select: {
+                    group_members: true,
+                    channels: true,
+                },
+                },
+            },
+            });
+    }
+    async updateGroupInformation(groupId, data){
+        return await prisma.groups.update({
+            where: { id: groupId },
+            data: {
+                ...data
+            }
+        })
+    }
+    async getNameState(name){
+        const checker = await prisma.groups.findFirst({
+            where: { name: name },
+            select: { name : true } 
+        })
+        if (!checker) return false
+        return true
+    }
+    async getSlugState(slug){
+        const checker = await prisma.groups.findUnique({
+            where: { slug: slug },
+            select: { slug : true } 
+        })
+        if (!checker) return false
+        return true
+    }
+    async getSlugsRelate(slug){
+        const slugs = await prisma.groups.findMany({
+            where: { 
+                slug: {
+                    contains: slug,
+                    mode: "insensitive"
+            }},
+            select:{
+                slug: true
+            }},
+        )
+        return slugs
+    }
     async getGroupMembers(groupId) {
         return await prisma.group_members.findMany({
             where: {
@@ -87,6 +172,17 @@ class groupDBService{
             },
         });
     }
+    async isMemberExisted(userId, groupId) {
+        const member = await prisma.group_members.findUnique({
+            where: {
+                userId_groupId: {
+                    userId,
+                    groupId
+                }
+            }
+        });
+        return member;
+    }
     async updateMemberRoleById(role, memberId, groupId) {
         return await prisma.group_members.update({
         where: {
@@ -94,8 +190,7 @@ class groupDBService{
             groupId
         },
         data: {
-            role: role,
-            updatedAt: new Date(),
+            role: role
         },
         });
     }
@@ -112,5 +207,14 @@ class groupDBService{
             where: { id: groupId },
         });
     }
+    async addMemberToGroup(userId, groupId, role) {
+        return await prisma.group_members.upsert({
+            where: {
+                userId_groupId: { userId, groupId }, // composite unique key
+            },
+            update: {}, // không cần update gì nếu đã tồn tại
+            create: { userId, groupId, role },
+            });
+        }
 }
 module.exports = new groupDBService()

@@ -30,7 +30,7 @@ router.get('/health', (req, res) => {
 
 /**
  * @swagger
- * /groups/{grId}/invitations:
+ * /groups/{id}/invitations:
  *   post:
  *     summary: Mời thành viên vào group
  *     description: Người gửi phải là ADMIN. Tạo một Invitation với status=INVITING, token hết hạn sau 3 ngày và gửi email mời.
@@ -38,7 +38,7 @@ router.get('/health', (req, res) => {
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - name: grId
+ *       - name: id
  *         in: path
  *         required: true
  *         schema:
@@ -137,7 +137,7 @@ router.get('/health', (req, res) => {
 
 /**
  * @swagger
- * /groups/{grId}/invitations/{invitationId}:
+ * /groups/{id}/invitations/{invitationId}:
  *   delete:
  *     summary: Thu hồi lời mời
  *     description: Chỉ ADMIN/OWNER được phép thu hồi
@@ -145,7 +145,7 @@ router.get('/health', (req, res) => {
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - name: grId
+ *       - name: id
  *         in: path
  *         required: true
  *         schema:
@@ -168,14 +168,14 @@ router.get('/health', (req, res) => {
 
 /**
  * @swagger
- * /groups/{grId}:
+ * /groups/{id}:
  *   get:
  *     summary: Lấy thông tin Group
  *     tags: [Groups]
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - name: grId
+ *       - name: id
  *         in: path
  *         required: true
  *         schema:
@@ -198,7 +198,7 @@ router.get('/health', (req, res) => {
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - name: grId
+ *       - name: id
  *         in: path
  *         required: true
  *         schema:
@@ -236,14 +236,14 @@ router.get('/health', (req, res) => {
 
 /**
  * @swagger
- * /groups/{grId}/members:
+ * /groups/{id}/members:
  *   get:
  *     summary: Lấy danh sách thành viên của group
  *     tags: [Members]
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - name: grId
+ *       - name: id
  *         in: path
  *         required: true
  *         schema:
@@ -261,7 +261,7 @@ router.get('/health', (req, res) => {
 
 /**
  * @swagger
- * /groups/{grId}/members/{memberId}:
+ * /groups/{id}/members/{memberId}:
  *   patch:
  *     summary: Cập nhật quyền của thành viên
  *     description: Chỉ OWNER mới được phép
@@ -269,7 +269,7 @@ router.get('/health', (req, res) => {
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - name: grId
+ *       - name: id
  *         in: path
  *         required: true
  *         schema:
@@ -304,7 +304,7 @@ router.get('/health', (req, res) => {
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - name: grId
+ *       - name: id
  *         in: path
  *         required: true
  *         schema:

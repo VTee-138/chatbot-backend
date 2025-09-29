@@ -44,6 +44,21 @@ const htmlForgotVerifiedLink = (link, user_email) => `
     </div>
 `;
 
+const htmlGroupInvitation = (link, user_email) => `
+    <div style="font-family: Arial, sans-serif; padding: 20px; background: #f8f5ff; border-radius: 10px;">
+        <h2 style="color: purple; margin-bottom: 10px;">Xin chào, ${user_email.split('@')[0]} 👋</h2>
+        <p style="font-size: 16px; color: #333;">
+            Bạn đã được mời tham gia vào một nhóm.
+            Nhấn vào liên kết bên dưới để chấp nhận lời mời:
+        </p>
+        <div style="padding: 5px 5px; background: white; color: #fff; display: inline-block; border-radius: 10px; font-size: 16px; letter-spacing: 2px;">
+        <a href="${link}" style="color:purple;text-decoration:none;">Accept Invitation</a>
+        </div>
+        <p style="margin-top: 20px; font-size: 14px; color: #666;">
+        Liên kết này có hiệu lực trong 7 ngày. Nếu bạn không mong muốn tham gia, vui lòng bỏ qua email này.
+        </p>
+    </div>`;
+
 /**
  * Bộ hàm chuyển đổi sang HTML Content để gửi mail.
  * Sau khi developer tạo ra các hàm HTML content riêng (vd: htmlForgotVerifiedLink, htmlRegisterVerifiedLink),
@@ -51,24 +66,27 @@ const htmlForgotVerifiedLink = (link, user_email) => `
  * @typedef {Object} HtmlConverter
  * @property {function(string, string): string} Forgot - Tạo HTML content verify code cho quên mật khẩu.
  * @property {function(string, string): string} Register - Tạo HTML content verify code cho đăng ký tài khoản.
+ * @property {function(string, string): string} GroupInvitation - Tạo HTML content cho lời mời tham gia nhóm.
  */
 /** @type {HtmlConverter} */
 const HtmlConverter = {
     Forgot: htmlForgotVerifiedLink,
     Register: htmlRegisterVerifiedLink,
-    
+    GroupInvitation: htmlGroupInvitation
 };
 /**
  * @typedef {Object} EmailType
  * @property {string} REGISTER - dùng cho việc gửi code đăng ký tới email người dùng
  * @property {string} FORGOT - dùng cho việc gửi thông code quên mật khẩu tới email người dùng
+ * @property {string} GROUP_INVITATION - dùng cho việc gửi email mời tham gia nhóm
  */
 /** @type {EmailType} */
 const EmailType = {
     REGISTER : 'register',
     FORGOT : 'forgot',
-    MFA: "2fa"
+    MFA: "2fa",
+    GROUP_INVITATION: 'group_invitation'
 }
-const EmailTypeList = ['register', 'forgot', '2fa']
+const EmailTypeList = ['register', 'forgot', '2fa', 'group_invitation']
 
-module.exports = { EmailTypeList, EmailType, HtmlConverter, htmlForgotVerifiedLink, htmlRegisterVerifiedLink, linkVerifyingToSend}
+module.exports = { EmailTypeList, EmailType, HtmlConverter, htmlForgotVerifiedLink, htmlRegisterVerifiedLink, linkVerifyingToSend, htmlGroupInvitation}

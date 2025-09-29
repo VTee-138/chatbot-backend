@@ -93,7 +93,7 @@ if (config.NODE_ENV === 'development') {
 // Custom request logger
 app.use(requestLogger);
 
-app.use(`${config.API_PREFIX}/${config.API_VERSION}`, router)
+app.use(`${config.API_PREFIX}/${config.API_VERSION}`, routes)
 // API Documentation with Swagger
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, swaggerOptions));
 
