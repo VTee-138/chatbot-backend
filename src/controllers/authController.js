@@ -513,6 +513,220 @@ const createSSO = catchAsync (async (req, res) => {
   }
 })
 
+/**
+ * Generate Google OAuth URL
+ */
+const generateGoogleOAuthUrl = (state = null) => {
+  const rootUrl = 'https://accounts.google.com/o/oauth2/v2/auth'
+  const options = {
+    client_id: config.GOOGLE_CLIENT_ID,
+    redirect_uri: `${config.BASE_URL || 'http://localhost:8000'}/api/v1/auth/google/callback`,
+    scope: 'openid profile email',
+    response_type: 'code',
+    access_type: 'offline',
+    prompt: 'consent'
+  }
+  
+  if (state) {
+    options.state = state
+  }
+  
+  const qs = new URLSearchParams(options)
+  return `${rootUrl}?${qs.toString()}`
+}
+
+/**
+ * Google OAuth Redirect
+ */
+const googleOAuthRedirect = catchAsync(async (req, res) => {
+  // Generate state parameter for security
+  const state = Math.random().toString(36).substring(2, 15)
+  
+  // Store state in Redis for verification (optional)
+  await redis.set(`oauth_state:${state}`, req.ip, 'EX', 600) // 10 minutes
+  
+  const googleAuthUrl = generateGoogleOAuthUrl(state)
+  console.log('🔗 Redirecting to Google OAuth:', googleAuthUrl)
+  
+  return res.redirect(googleAuthUrl)
+})
+
+/**
+ * Google OAuth Callback
+ */
+const googleOAuthCallback = catchAsync(async (req, res, next) => {
+  const { code, state, error } = req.query
+  
+  try {
+    // Handle OAuth errors
+    if (error) {
+      console.error('Google OAuth error:', error)
+      const frontendUrl = config.FRONTEND_URL || 'http://localhost:3000'
+      return res.redirect(`${frontendUrl}/login?error=oauth_error&provider=google`)
+    }
+    
+    if (!code) {
+      console.error('Missing authorization code')
+      const frontendUrl = config.FRONTEND_URL || 'http://localhost:3000'
+      return res.redirect(`${frontendUrl}/login?error=missing_code`)
+    }
+    
+    // Verify state parameter (optional)
+    if (state) {
+      const storedState = await redis.get(`oauth_state:${state}`)
+      if (storedState) {
+        await redis.del(`oauth_state:${state}`)
+      }
+    }
+    
+    console.log('📧 Processing Google OAuth callback with code:', code.substring(0, 20) + '...')
+    
+    // Exchange code for tokens
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: config.GOOGLE_CLIENT_ID,
+        client_secret: config.GOOGLE_CLIENT_SECRET,
+        code: code,
+        grant_type: 'authorization_code',
+        redirect_uri: `${config.BASE_URL || 'http://localhost:8000'}/api/v1/auth/google/callback`,
+      }),
+    })
+    
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text()
+      console.error('Token exchange failed:', errorText)
+      const frontendUrl = config.FRONTEND_URL || 'http://localhost:3000'
+      return res.redirect(`${frontendUrl}/login?error=token_exchange_failed`)
+    }
+    
+    const tokens = await tokenResponse.json()
+    console.log('🎫 Received Google tokens successfully')
+    
+    // Use the ID token to get user profile and login
+    const idToken = tokens.id_token
+    if (!idToken) {
+      console.error('Missing ID token in response')
+      const frontendUrl = config.FRONTEND_URL || 'http://localhost:3000'
+      return res.redirect(`${frontendUrl}/login?error=missing_id_token`)
+    }
+    
+    // Verify and get user profile from ID token
+    let ssoProfile = null
+    try {
+      ssoProfile = await authService.googleSSOLogin(idToken)
+    } catch (ssoError) {
+      console.error('Google profile verification failed:', ssoError.message)
+      const frontendUrl = config.FRONTEND_URL || 'http://localhost:3000'
+      return res.redirect(`${frontendUrl}/login?error=profile_verification_failed`)
+    }
+    
+    if (!ssoProfile || !ssoProfile.sub) {
+      console.error('Failed to get Google profile')
+      const frontendUrl = config.FRONTEND_URL || 'http://localhost:3000'
+      return res.redirect(`${frontendUrl}/login?error=profile_failed`)
+    }
+    
+    console.log(`✅ Google profile verified for user: ${ssoProfile.email}`)
+    
+    // Check if SSO user already exists
+    let ssoUser = await userCredentialModel.findUserBySSO('google', ssoProfile.sub)
+    
+    // If user doesn't exist, create new SSO account
+    if (!ssoUser) {
+      console.log('👤 Creating new Google SSO account')
+      
+      // Generate unique username from profile
+      let userName = convertToAscii(ssoProfile.userName || ssoProfile.name || `user_${ssoProfile.sub.slice(-8)}`)
+      const newUserName = await authService.generateUniqueUserName(userName)
+      
+      const email = ssoProfile.email
+      
+      // Check if email already exists
+      if (email) {
+        const existingUser = await userCredentialModel.findUserByEmail(email)
+        if (existingUser && existingUser.emailVerifiedAt) {
+          const frontendUrl = config.FRONTEND_URL || 'http://localhost:3000'
+          return res.redirect(`${frontendUrl}/login?error=email_already_used`)
+        }
+      }
+      
+      // Create new SSO account
+      try {
+        ssoUser = await userCredentialModel.createSSOAccount('google', ssoProfile.sub, {
+          userName: newUserName,
+          email: email,
+          firstName: ssoProfile.firstName || ssoProfile.given_name,
+          lastName: ssoProfile.lastName || ssoProfile.family_name,
+          avatar: ssoProfile.picture || ssoProfile.avatar
+        })
+        console.log(`✅ Created new Google account for user: ${newUserName}`)
+      } catch (createError) {
+        console.error('Failed to create SSO account:', createError)
+        const frontendUrl = config.FRONTEND_URL || 'http://localhost:3000'
+        return res.redirect(`${frontendUrl}/login?error=account_creation_failed`)
+      }
+    } else {
+      console.log(`🔄 Existing Google user login: ${ssoUser.userName}`)
+    }
+    
+    // Check if 2FA is enabled
+    if (ssoUser.twoFactorEnabled) {
+      console.log(`🔒 2FA required for user: ${ssoUser.userName}`)
+      const payload = {
+        id: ssoUser.id,
+        role: ssoUser.role
+      }
+      const mfaToken = generateToken(payload, '2fa')
+      
+      // Redirect to frontend with 2FA token
+      const frontendUrl = config.FRONTEND_URL || 'http://localhost:3000'
+      return res.redirect(`${frontendUrl}/verify-2fa?token=${mfaToken}&provider=google`)
+    }
+    
+    // Create session for the user
+    req.user = ssoUser
+    
+    // Generate tokens
+    const ssoUsers = await userCredentialModel.findSSOUserById(ssoUser.id)
+    const ssoProviders = (ssoUsers || []).map(s => s.provider)
+    
+    const clientPayload = {
+      id: ssoUser.id,
+      email: ssoUser.email,
+      userName: ssoUser.userName,
+      role: ssoUser.role,
+      ssoProviders
+    }
+    
+    const tokenPair = generateTokenPair(clientPayload)
+    
+    // Hash refresh token and store in Redis
+    const hashed = await hashPassword(tokenPair.refreshToken)
+    await redis.set(`refresh:${ssoUser.id}`, hashed, 'EX', Constants.TIME_PICKER._7day_secs)
+    
+    // Set authentication cookies
+    httpOnlyResponse(res, 'refreshToken', tokenPair.refreshToken, Constants.TIME_PICKER._7day_ms)
+    httpOnlyResponse(res, 'clientInformation', JSON.stringify(clientPayload), Constants.TIME_PICKER._7day_ms)
+    
+    console.log(`✅ Google OAuth login successful for: ${ssoUser.userName}`)
+    
+    // Redirect to frontend with success
+    const frontendUrl = config.FRONTEND_URL || 'http://localhost:3000'
+    const redirectUrl = `${frontendUrl}/dashboard?login=success&provider=google`
+    
+    return res.redirect(redirectUrl)
+    
+  } catch (error) {
+    console.error('❌ Google OAuth Callback Error:', error.message)
+    const frontendUrl = config.FRONTEND_URL || 'http://localhost:3000'
+    return res.redirect(`${frontendUrl}/login?error=oauth_callback_error`)
+  }
+})
+
 const loginSSO = catchAsync( async (req, res, next) => {
   const { provider } = req.params
   const { accessToken, idToken } = req.body
@@ -787,5 +1001,7 @@ module.exports = {
   checkEmailExists,
   checkSession,
   removeAllDevices,
-  reAuthenticate
+  reAuthenticate,
+  googleOAuthRedirect,
+  googleOAuthCallback
 };

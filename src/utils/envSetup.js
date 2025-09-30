@@ -17,7 +17,7 @@ const setupEnvironment = () => {
 # Please update with your actual credentials
 
 NODE_ENV=development
-PORT=3000
+PORT=8000
 
 # Database (Update this!)
 DATABASE_URL="postgresql://username:password@localhost:5432/chatbot_db?schema=public"
@@ -54,11 +54,14 @@ TURNSTILE_SECRET=
 # Google OAuth (Optional - for SSO)
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-GOOGLE_CALLBACK_URL=http://localhost:3000/auth/google/callback
 
 # Facebook OAuth (Optional - for SSO)  
 FACEBOOK_APP_ID=
 FACEBOOK_APP_SECRET=
+
+# OAuth URLs
+BASE_URL=http://localhost:8000
+FRONTEND_URL=http://localhost:3000
 
 # Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000

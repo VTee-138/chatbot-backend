@@ -61,5 +61,9 @@ module.exports = {
   TURNSTILE_SECRET: process.env.TURNSTILE_SECRET,
   
   // Mail FE Link
-  URL_MAIL_PUBLIC : process.env.URL_MAIL_PUBLIC
+  URL_MAIL_PUBLIC : process.env.URL_MAIL_PUBLIC,
+  
+  // OAuth URLs
+  BASE_URL: process.env.BASE_URL || 'http://localhost:8000',
+  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000'
 }

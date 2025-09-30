@@ -19,7 +19,9 @@ const {
   twoFactorVerify,
   twoFactorBackupCodeVerify,
   twoFactorBackupCodeRegenerate,
-  reAuthenticate
+  reAuthenticate,
+  googleOAuthRedirect,
+  googleOAuthCallback
 } = require('../controllers/authController');
 const { authenticate, isAccountForgotExists, authLimiter, authenticate2FA } = require('../middleware/auth');
 const schemaValidate = require('../utils/schemaValidate');
@@ -470,6 +472,60 @@ authRouter.post('/register/verify-email', verifyMail) // sẽ gửi jwt chứa c
 
 /**
  * @swagger
+ * /api/v1/auth/google:
+ *   get:
+ *     tags: [Authentication]
+ *     summary: Google OAuth Redirect
+ *     description: Redirect to Google OAuth consent screen for authentication
+ *     responses:
+ *       302:
+ *         description: Redirect to Google OAuth consent screen
+ *         headers:
+ *           Location:
+ *             description: Google OAuth URL
+ *             schema:
+ *               type: string
+ *               example: "https://accounts.google.com/o/oauth2/v2/auth?client_id=..."
+ */
+
+/**
+ * @swagger
+ * /api/v1/auth/google/callback:
+ *   get:
+ *     tags: [Authentication]
+ *     summary: Google OAuth Callback
+ *     description: Handle Google OAuth callback and complete authentication
+ *     parameters:
+ *       - in: query
+ *         name: code
+ *         required: true
+ *         description: Authorization code from Google
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: state
+ *         required: false
+ *         description: State parameter for security
+ *         schema:
+ *           type: string
+ *     responses:
+ *       302:
+ *         description: Redirect to frontend with authentication result
+ *         headers:
+ *           Location:
+ *             description: Frontend URL with authentication status
+ *             schema:
+ *               type: string
+ *           Set-Cookie:
+ *             description: Authentication cookies
+ *             schema:
+ *               type: string
+ *       400:
+ *         description: OAuth error or missing parameters
+ */
+
+/**
+ * @swagger
  * /api/v1/auth/sso/{provider}:
  *   post:
  *     tags: [Authentication]
@@ -519,7 +575,7 @@ authRouter.post('/register/verify-email', verifyMail) // sẽ gửi jwt chứa c
  *             description: Authentication cookies
  *             schema:
  *               type: string
- *       200:
+ *       201:
  *         description: 2FA required
  *         content:
  *           application/json:
@@ -568,6 +624,11 @@ authRouter.post('/register/verify-email', verifyMail) // sẽ gửi jwt chứa c
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
+// Google OAuth routes
+authRouter.get('/google', googleOAuthRedirect)
+authRouter.get('/google/callback', googleOAuthCallback)
+
+// SSO routes
 authRouter.post('/sso/:provider', loginSSO)
 authRouter.post('/re-authenticate', authenticate, reAuthenticate)
 // Route này dùng cho việc verify sso access token only
