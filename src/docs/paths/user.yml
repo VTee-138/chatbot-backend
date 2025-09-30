@@ -1,0 +1,87 @@
+generate2FA:
+  post:
+    tags: [User Profile]
+    summary: 'Tạo mã QR để thiết lập 2FA'
+    description: 'Bắt đầu quá trình thiết lập 2FA. API trả về một mã QR để người dùng quét bằng ứng dụng xác thực.'
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: 'Thành công, trả về mã QR dưới dạng ảnh base64.'
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                message:
+                  type: string
+                  example: "Successful"
+                data:
+                  type: object
+                  properties:
+                    qr:
+                      type: string
+                      description: 'Dữ liệu ảnh QR dạng base64.'
+                      example: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUA..."
+      '400':
+        description: 'Người dùng đã bật 2FA từ trước.'
+
+enable2FA:
+  post:
+    tags: [User Profile]
+    summary: 'Kích hoạt 2FA'
+    description: 'Hoàn tất và kích hoạt 2FA bằng cách xác thực mã OTP đầu tiên. API trả về các mã dự phòng.'
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/user.yml#/VerifyTokenRequest'
+    responses:
+      '200':
+        description: 'Kích hoạt 2FA thành công, trả về danh sách mã dự phòng.'
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                message:
+                  type: string
+                  example: "2FA enabled successfully!"
+                data:
+                  type: object
+                  properties:
+                    backupCodes:
+                      type: array
+                      items:
+                        type: string
+                        example: "abcdef-12345"
+      '401':
+        description: 'Mã OTP không hợp lệ.'
+
+disable2FA:
+  post:
+    tags: [User Profile]
+    summary: 'Vô hiệu hóa 2FA'
+    description: 'Vô hiệu hóa 2FA cho tài khoản. Yêu cầu xác thực bằng mã OTP hợp lệ.'
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/user.yml#/VerifyTokenRequest'
+    responses:
+      '200':
+        description: 'Vô hiệu hóa 2FA thành công.'
+      '400':
+        description: 'Mã OTP không hợp lệ.'

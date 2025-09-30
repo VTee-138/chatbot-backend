@@ -1,0 +1,37 @@
+Profile:
+  type: object
+  properties:
+    id:
+      type: string
+      example: "clx9wABCD0001efghijk1234l"
+    email:
+      type: string
+      format: email
+      example: "user@example.com"
+    userName:
+      type: string
+      example: "testuser"
+    firstName:
+      type: string
+      nullable: true
+      example: "John"
+    lastName:
+      type: string
+      nullable: true
+      example: "Doe"
+    avatar:
+      type: string
+      format: uri
+      nullable: true
+      example: "https://example.com/avatar.png"
+    role:
+      type: string
+      example: "USER"
+VerifyTokenRequest:
+  type: object
+  required: [token]
+  properties:
+    token:
+      type: string
+      description: 'Mã OTP 6 số từ ứng dụng xác thực.'
+      example: "123456"

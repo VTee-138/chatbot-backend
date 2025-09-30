@@ -34,14 +34,14 @@ authRouter.post('/register', redisValidate('register', cookieHelper.getServiceGm
 // Dùng mỗi cho việc verify tài khoản của người dùng
 authRouter.post('/register/verify-email', verifyMail) // sẽ gửi jwt chứa các loại thông tin đến, tùy vào type sẽ validate thông tin của người dùng
 
-authRouter.post('/forgot', schemaValidate(EmailSchema, "body"), redisValidate('forgot',cookieHelper.getServiceGmail), forgot)
-authRouter.post('/reset-password', schemaValidate(ResetForgotPasswordSchema, 'validate'), resetPassword)
-
-authRouter.post('/resend/:type', redisValidate((req) => req.params.type, cookieHelper.getServiceGmail), resendVerifyEmail)
 
 authRouter.post('/sso/:provider', loginSSO)
 authRouter.post('/login', authLimiter, schemaValidate(LoginSchema, "body"), login);
 
+authRouter.post('/forgot', schemaValidate(EmailSchema, "body"), redisValidate('forgot',cookieHelper.getServiceGmail), forgot)
+authRouter.post('/reset-password', schemaValidate(ResetForgotPasswordSchema, 'validate'), resetPassword)
+
+authRouter.post('/resend/:type', redisValidate((req) => req.params.type, cookieHelper.getServiceGmail), resendVerifyEmail)
 // AVAILABLE USER
 authRouter.post('/change-password', authenticate, schemaValidate(ResetPasswordSchema, "body"), changePassword);
 authRouter.post('/refresh', refreshToken);

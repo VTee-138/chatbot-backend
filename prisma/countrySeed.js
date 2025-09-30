@@ -258,7 +258,7 @@ async function main() {
   console.log("🌍 Seeding full ISO 3166-1 countries...");
   for (const country of countries) {
     await prisma.country.upsert({
-      where: { code: country.code },
+      where: { code: country.codew },
       update: {},
       create: country,
     });

@@ -1,0 +1,235 @@
+createGroup:
+  post:
+    tags: [Groups]
+    summary: 'Tạo một nhóm mới'
+    description: 'Tạo một nhóm mới. Người dùng tạo nhóm sẽ tự động được gán vai trò là OWNER.'
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/group.yml#/CreateGroupRequest'
+    responses:
+      '201':
+        description: 'Tạo nhóm thành công, trả về thông tin nhóm.'
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/group.yml#/GroupResponse'
+      '400':
+        description: 'Tên hoặc slug đã tồn tại, hoặc quốc gia không hợp lệ.'
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/ErrorResponseWithSuggestions'
+
+getGroups:
+  get:
+    tags: [Groups]
+    summary: 'Lấy danh sách các nhóm của người dùng'
+    description: 'Lấy danh sách tất cả các nhóm mà người dùng hiện tại là thành viên, cùng với vai trò của họ trong mỗi nhóm.'
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: 'ID của nhóm (dùng để kiểm tra quyền truy cập của người dùng).'
+        schema:
+          type: string
+    responses:
+      '200':
+        description: 'Thành công, trả về danh sách các nhóm của người dùng.'
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/group.yml#/UserGroupsResponse'
+
+getGroupMembers:
+  get:
+    tags: [Groups]
+    summary: 'Lấy danh sách thành viên của một nhóm'
+    description: 'Lấy danh sách tất cả thành viên trong một nhóm cụ thể.'
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: 'ID của nhóm.'
+        schema:
+          type: string
+    responses:
+      '200':
+        description: 'Thành công, trả về danh sách thành viên.'
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/group.yml#/GroupMembersResponse'
+
+updateGroup:
+  put:
+    tags: [Groups]
+    summary: 'Cập nhật thông tin nhóm'
+    description: 'Cập nhật thông tin của một nhóm (tên, logo, email, ...). Yêu cầu quyền OWNER hoặc ADMIN.'
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: 'ID của nhóm cần cập nhật.'
+        schema:
+          type: string
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/group.yml#/UpdateGroupRequest'
+    responses:
+      '200':
+        description: 'Cập nhật thành công, trả về thông tin nhóm đã được cập nhật.'
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/group.yml#/GroupResponse'
+
+inviteAndGet:
+  post:
+    tags: [Groups]
+    summary: 'Mời thành viên vào nhóm'
+    description: 'Gửi lời mời một người dùng khác tham gia vào nhóm qua email. Yêu cầu quyền OWNER hoặc ADMIN.'
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: 'ID của nhóm.'
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/invitation.yml#/InviteMemberRequest'
+    responses:
+      '200':
+        description: 'Lời mời đã được gửi thành công.'
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/SuccessResponse'
+      '404':
+        description: 'Không tìm thấy người dùng.'
+      '409':
+        description: 'Người dùng đã là thành viên của nhóm.'
+  get:
+    tags: [Groups]
+    summary: 'Lấy danh sách lời mời đã gửi'
+    description: 'Lấy danh sách tất cả các lời mời đã được gửi bởi người dùng hiện tại trên toàn hệ thống. Yêu cầu quyền OWNER hoặc ADMIN.'
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: 'ID của nhóm (dùng để kiểm tra quyền).'
+        schema:
+          type: string
+    responses:
+      '200':
+        description: 'Thành công, trả về danh sách lời mời.'
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/invitation.yml#/InvitationListResponse'
+
+revokeInvitation:
+  delete:
+    tags: [Groups]
+    summary: 'Thu hồi lời mời'
+    description: 'Xóa một lời mời đã gửi (chỉ áp dụng cho trạng thái PENDING hoặc DECLINED). Yêu cầu quyền OWNER.'
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: 'ID của nhóm.'
+        schema:
+          type: string
+      - name: invitationId
+        in: path
+        required: true
+        description: 'ID của lời mời cần thu hồi.'
+        schema:
+          type: string
+    responses:
+      '200':
+        description: 'Thu hồi lời mời thành công.'
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/SuccessResponse'
+
+updateMemberRole:
+  put:
+    tags: [Groups]
+    summary: 'Cập nhật vai trò thành viên'
+    description: 'Thay đổi vai trò của một thành viên trong nhóm. Yêu cầu quyền OWNER.'
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: 'ID của nhóm.'
+        schema:
+          type: string
+      - name: userId
+        in: path
+        required: true
+        description: 'ID của người dùng cần thay đổi vai trò.'
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/group.yml#/UpdateRoleRequest'
+    responses:
+      '200':
+        description: 'Cập nhật vai trò thành công.'
+      '400':
+        description: 'Không thể thay đổi vai trò của chủ sở hữu.'
+
+removeMember:
+  delete:
+    tags: [Groups]
+    summary: 'Xóa thành viên khỏi nhóm'
+    description: 'Xóa một thành viên ra khỏi nhóm. Yêu cầu quyền OWNER hoặc ADMIN.'
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: 'ID của nhóm.'
+        schema:
+          type: string
+      - name: userId
+        in: path
+        required: true
+        description: 'ID của người dùng cần xóa.'
+        schema:
+          type: string
+    responses:
+      '200':
+        description: 'Xóa thành viên thành công.'
+      '400':
+        description: 'Không thể xóa chủ sở hữu nhóm.'

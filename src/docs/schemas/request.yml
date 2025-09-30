@@ -1,0 +1,112 @@
+Email:
+  type: object
+  required: [email]
+  properties:
+    email:
+      type: string
+      format: email
+      example: "user@example.com"
+
+Register:
+  type: object
+  required: [userName, password, confirmPassword, phoneNumber]
+  properties:
+    userName:
+      type: string
+      description: "Dài 5-200 ký tự, chỉ chứa chữ, số, _, -"
+      example: "newuser123"
+    password:
+      type: string
+      description: "Ít nhất 8 ký tự, bao gồm chữ và số"
+      example: "Password123"
+    confirmPassword:
+      type: string
+      example: "Password123"
+    phoneNumber:
+      type: string
+      description: "Đủ 10 chữ số"
+      example: "0987654321"
+
+Login:
+  type: object
+  required: [userName, password]
+  properties:
+    userName:
+      type: string
+      example: "testuser"
+    password:
+      type: string
+      example: "Password123"
+
+JwtToken:
+  type: object
+  required: [jwt]
+  properties:
+    jwt:
+      type: string
+      example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+SSOGoogle:
+  type: object
+  required: [idToken]
+  properties:
+    idToken:
+      type: string
+      description: "ID Token từ Google OAuth2"
+      example: "eyJhbGciOiJSUzI1NiIsImtpZCI6IjA0MzY1YzEyMzQ1Njc4OTAifQ..."
+
+SSOFacebook:
+  type: object
+  required: [accessToken]
+  properties:
+    accessToken:
+      type: string
+      description: "Access Token từ Facebook Login"
+      example: "EAAJZA7ZCZCZA5gBAKuZA2ZA2QZAaZA3KZA..."
+
+ResetPassword:
+  type: object
+  required: [jwt, newPassword, confirmNewPassword]
+  properties:
+    jwt:
+      type: string
+      example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    newPassword:
+      type: string
+      example: "NewStrongPassword123"
+    confirmNewPassword:
+      type: string
+      example: "NewStrongPassword123"
+
+ChangePassword:
+  type: object
+  required: [oldPassword, newPassword, confirmNewPassword]
+  properties:
+    oldPassword:
+      type: string
+      example: "Password123"
+    newPassword:
+      type: string
+      example: "NewStrongPassword123"
+    confirmNewPassword:
+      type: string
+      example: "NewStrongPassword123"
+
+ReAuthenticate:
+  type: object
+  description: "Cung cấp mật khẩu HOẶC thông tin SSO để xác thực lại"
+  properties:
+    password:
+      type: string
+      example: "Password123"
+    idToken:
+      type: string
+      description: "Dùng cho Google SSO"
+      example: "eyJhbGciOiJSUzI1NiIsImtpZCI6IjA0MzY1YzEyMzQ1Njc4OTAifQ..."
+    accessToken:
+      type: string
+      description: "Dùng cho Facebook SSO"
+      example: "EAAJZA7ZCZCZA5gBAKuZA2ZA2QZAaZA3KZA..."
+    provider:
+      type: string
+      enum: [google, facebook]

@@ -92,34 +92,34 @@ const checkEmailExists = catchAsync ( async ( req, res ) =>{
 * - Người dùng đã log out => mất session db, nên phải login lại từ đầu
 */
 const login = catchAsync(async (req, res, next) => {
-// GET FIELD
-const { userName, password } = req.body;
-try {
-// Find user with password
-const user = await userCredentialModel.findAccountWithUserName(userName)
-// Tài khoản sso sẽ có một userName vậy nên nếu không tồn tại mật khẩu => không cho đăng nhập
-if (!user || !user.emailVerifiedAt || !user.passwordHash) {
-  return errorResponse(res, 'Tài khoản hoặc mật không hợp lệ', Constants.BAD_REQUEST);
-}
-// Verify password
-const isPasswordValid = await comparePassword(password, user.passwordHash);
-if (!isPasswordValid) {
-  return errorResponse(res, 'Mật khẩu của bạn không chính xác', Constants.BAD_REQUEST);
-}
-// Nếu 2FA có bật, tạo token mới để xác nhận việc xác nhận 2FA
-if (user.twoFactorEnabled) {
-  const payload = {
-    id: user.id,
-    role: user.role
+  // GET FIELD
+  const { userName, password } = req.body;
+  try {
+    // Find user with password
+    const user = await userCredentialModel.findAccountWithUserName(userName)
+    // Tài khoản sso sẽ có một userName vậy nên nếu không tồn tại mật khẩu => không cho đăng nhập
+    if (!user || !user.emailVerifiedAt || !user.passwordHash) {
+      return errorResponse(res, 'Tài khoản hoặc mật không hợp lệ', Constants.BAD_REQUEST);
+    }
+    // Verify password
+    const isPasswordValid = await comparePassword(password, user.passwordHash);
+    if (!isPasswordValid) {
+      return errorResponse(res, 'Mật khẩu của bạn không chính xác', Constants.BAD_REQUEST);
+    }
+    // Nếu 2FA có bật, tạo token mới để xác nhận việc xác nhận 2FA
+    if (user.twoFactorEnabled) {
+      const payload = {
+        id: user.id,
+        role: user.role
+      }
+      const mfaToken = generateToken(payload, '2fa')
+      return successResponse(res, { "2FA Token": mfaToken }, "2FA required", Constants.OK)
+    }
+    req.user = user
+  return openSession(req, res, next)
+  } catch (error) {                                             
+    next(error)
   }
-  const mfaToken = generateToken(payload, '2fa')
-  return successResponse(res, { "2FA Token": mfaToken }, "2FA required", Constants.OK)
-}
-req.user = user
-return openSession(req, res, next)
-} catch (error) {                                             
-next(error)
-}
 });
 /**
 * @description Refresh access token, xác thực refresh token thông qua req.session, vì đã lưu
@@ -444,7 +444,6 @@ const twoFactorVerify = catchAsync( async (req, res, next) =>{
     const is2FALogin = req.mfa
     // Tìm kiếm user trong db để lấy secret 
     const user = await userCredentialModel.findUserById(id)
-    console.log(user)
     const checker = TwoFAService.verifyOTP(token, user.twoFactorSecret)
     if (!checker) return errorResponse(res, Constants.MESSAGES._TOKEN_INVALID, Constants.BAD_REQUEST)
       // Nếu từ route login, thì mở session

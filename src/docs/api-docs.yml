@@ -1,0 +1,105 @@
+openapi: 3.0.3
+info:
+  title: API Documentation - /auth route
+  description: Tài liệu chi tiết cho các API liên quan đến xác thực và quản lý tài khoản người dùng, dựa trên tài liệu Word được cung cấp.
+  version: '1.0.0'
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Development Server
+  - url: https://your-production-server.com/api/v1
+    description: Production Server
+tags:
+  - name: Auth
+    description: Các API về Xác thực & Quản lý người dùng (Đăng ký, Đăng nhập, SSO, Quản lý mật khẩu)
+  - name: User Profile
+    description: Các API quản lý thông tin cá nhân của người dùng
+  - name: Two-Factor Authentication (2FA)
+    description: Các API liên quan đến xác thực hai yếu tố
+  - name: Groups
+    description: Các API về Quản lý Nhóm (Tạo, cập nhật, quản lý thành viên)
+  - name: Invitations
+    description: Các API để Chấp nhận, Từ chối hoặc Thu hồi lời mời vào nhóm
+
+paths:
+  /auth/register/check-email:
+    $ref: './paths/auth.yml#/checkEmail'
+  /auth/register:
+    $ref: './paths/auth.yml#/register'
+  /auth/register/verify-email:
+    $ref: './paths/auth.yml#/verifyEmail'
+  /auth/login:
+    $ref: './paths/auth.yml#/login'
+  /auth/sso/google:
+    $ref: './paths/auth.yml#/ssoGoogle'
+  /auth/sso/facebook:
+    $ref: './paths/auth.yml#/ssoFacebook'
+  /auth/logout:
+    $ref: './paths/auth.yml#/logout'
+  /auth/logout-all:
+    $ref: './paths/auth.yml#/logoutAll'
+  /auth/refresh:
+    $ref: './paths/auth.yml#/refresh'
+  /auth/me:
+    $ref: './paths/auth.yml#/checkSession'
+  /auth/re-authenticate:
+    $ref: './paths/auth.yml#/reAuthenticate'
+  /auth/forgot:
+    $ref: './paths/auth.yml#/forgotPassword'
+  /auth/reset-password:
+    $ref: './paths/auth.yml#/resetPassword'
+  /auth/change-password:
+    $ref: './paths/auth.yml#/changePassword'
+  /auth/resend/{type}:
+    $ref: './paths/auth.yml#/resendEmail'
+  /user/me/profile:
+    $ref: './paths/auth.yml#/getProfile'
+  /user/me/profile/update:
+    $ref: './paths/auth.yml#/updateProfile'
+  /user/2fa/verify:
+    $ref: './paths/auth.yml#/verify2FA'
+  /user/2fa/backup-codes/verify:
+    $ref: './paths/auth.yml#/verify2FABackup'
+  /user/2fa/backup-codes/regenerate:
+    $ref: './paths/auth.yml#/regenerate2FABackup'
+  /auth/2fa/login/verify:
+    $ref: './paths/auth.yml#/login2FAVerify'
+  /auth/2fa/login/backup-codes/verify:
+    $ref: './paths/auth.yml#/login2FABackupVerify'
+   # Group Paths
+  /groups:
+    $ref: './paths/groups.yml#/createGroup'
+  /groups/{id}:
+    $ref: './paths/groups.yml#/getGroups'
+  /groups/{id}/members:
+    $ref: './paths/groups.yml#/getGroupMembers'
+  /groups/{id}/update:
+    $ref: './paths/groups.yml#/updateGroup'
+  /groups/{id}/invite:
+    $ref: './paths/groups.yml#/inviteAndGet'
+  /groups/{id}/invite/{invitationId}:
+    $ref: './paths/groups.yml#/revokeInvitation'
+  /groups/{id}/members/{userId}/update-role:
+    $ref: './paths/groups.yml#/updateMemberRole'
+  /groups/{id}/members/{userId}/remove:
+    $ref: './paths/groups.yml#/removeMember'
+
+  # Invitation Paths
+  /invitations/accept:
+    $ref: './paths/invitations.yml#/acceptInvitation'
+  /invitations/decline:
+    $ref: './paths/invitations.yml#/declineInvitation'
+  /invitations/{id}/revoke:
+    $ref: './paths/invitations.yml#/revokeInvitationById'
+  # === User 2FA Paths ===
+  /me/2fa/generate:
+    $ref: './paths/user.yml#/generate2FA'
+  /me/2fa/enable:
+    $ref: './paths/user.yml#/enable2FA'
+  /me/2fa/disable:
+    $ref: './paths/user.yml#/disable2FA'
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

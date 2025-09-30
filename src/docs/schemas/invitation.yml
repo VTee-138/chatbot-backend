@@ -1,0 +1,58 @@
+InviteMemberRequest:
+  type: object
+  properties:
+    email:
+      type: string
+      format: email
+      description: 'Email của người dùng cần mời.'
+      example: "invited.user@example.com"
+    userName:
+      type: string
+      description: 'Tên người dùng cần mời.'
+      example: "invited_user"
+    role:
+      type: string
+      description: 'Vai trò gán cho người dùng khi tham gia.'
+      enum: [MEMBER, ADMIN]
+      default: MEMBER
+      example: "MEMBER"
+
+InvitationTokenRequest:
+  type: object
+  required: [token]
+  properties:
+    token:
+      type: string
+      description: 'Invitation token nhận được từ email.'
+      example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+Invitation:
+  type: object
+  properties:
+    id:
+      type: string
+    email:
+      type: string
+      format: email
+    groupId:
+      type: string
+    role:
+      type: string
+    status:
+      type: string
+      enum: [PENDING, ACCEPTED, DECLINED, EXPIRED]
+    expiresAt:
+      type: string
+      format: date-time
+
+InvitationListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: array
+      items:
+        $ref: '#/Invitation'
