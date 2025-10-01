@@ -13,6 +13,7 @@ const cookieHelper = require('../utils/cookieHelper');
 const TwoFAService = require('../services/2FAService');
 const { getConnectionName } = require('ioredis/built/cluster/util');
 const { rateLimiterAuth, rateLimiterGeneral } = require('../config/limiter');
+const { twoFactorEnable } = require('./userController');
 /**
  * Verify Email Sent
  */
@@ -300,35 +301,86 @@ const logout = catchAsync(async (req, res) => {
  * Get current user profile
  */
 const getProfile = catchAsync(async (req, res) => {
+  console.log('🔍 getProfile called with req.user:', req.user);
+  
+  if (!req.user || !req.user.id) {
+    return errorResponse(res, 'User information not found in request', 400);
+  }
+
+  // Development mode - return mock data
+  if (config.NODE_ENV === 'development' && req.user.email === 'local@test.com') {
+    const mockProfile = {
+      id: req.user.id,
+      email: req.user.email,
+      userName: 'DeveloperUser',
+      avatarUrl: null,
+      role: 'USER',
+      emailVerifiedAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      twoFactorBackupCodes: null,
+      twoFactorEnabled: false,
+      twoFactorSecret: null,
+    };
+    
+    console.log('🚀 Development mode - returning mock profile');
+    return successResponse(res, mockProfile, 'Profile retrieved successfully (development mode)');
+  }
+
+  // Production mode - get real user from database
   const user = await prisma.user.findUnique({
     where: { id: req.user.id },
     select: {
       id: true,
       email: true,
-      firstName: true,
-      lastName: true,
-      avatar: true,
+      userName: true,
+      avatarUrl: true,
       role: true,
-      isActive: true,
+      emailVerifiedAt: true,
       createdAt: true,
       updatedAt: true,
-      lastLogin: true,
-      organizations: {
-        include: {
-          organization: {
-            select: {
-              id: true,
-              name: true,
-              slug: true,
-              logo: true,
-            },
-          },
-        },
-      },
+      twoFactorBackupCodes: true,
+      twoFactorEnabled: true,
+      twoFactorSecret: true,
     },
   });
+
+  if (!user) {
+    return errorResponse(res, 'User not found in database', 404);
+  }
+
+  // Get user's groups
+  const userGroups = await prisma.group_members.findMany({
+    where: { userId: user.id },
+    include: {
+      groups: {
+        select: {
+          id: true,
+          name: true,
+          slug: true
+        }
+      }
+    }
+  });
+
+  // Get SSO providers
+  const ssoProviders = await prisma.ssoAccount.findMany({
+    where: { userId: user.id },
+    select: { provider: true }
+  });
+
+  const profileData = {
+    ...user,
+    groups: userGroups.map(m => ({
+      ...m.groups,
+      role: m.role
+    })),
+    ssoProviders: ssoProviders.map(s => s.provider),
+    needsOnboarding: userGroups.length === 0
+  };
   
-  return successResponse(res, user, 'Profile retrieved successfully');
+  console.log('✅ Production mode - returning full profile with groups');
+  return successResponse(res, profileData, 'Profile retrieved successfully');
 });
 
 /**
@@ -472,15 +524,51 @@ const openSession = catchAsync ( async (req, res, next) => {
     const user = req.user
     console.log(user)
     if (!user) throw new ErrorResponse(Constants.MESSAGES._UNAUTHORIZED, Constants.UNAUTHORIZED)
+    
+    // Get SSO providers
     const ssoUsers = await userCredentialModel.findSSOUserById(user.id);
     const ssoProviders = (ssoUsers || []).map(s => s.provider);
+    
+    // Get user's groups and check if they need to create first group
+    const userGroups = await prisma.group_members.findMany({
+      where: { userId: user.id },
+      include: {
+        groups: {
+          include: {
+            subscriptions: {
+              include: { plans: true }
+            }
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    let needsOnboarding = false;
+    let activeGroup = null;
+    
+    if (userGroups.length === 0) {
+      // User chưa có group nào - cần onboarding
+      needsOnboarding = true;
+    } else {
+      // Set group đầu tiên làm active group mặc định
+      activeGroup = {
+        id: userGroups[0].groups.id,
+        name: userGroups[0].groups.name,
+        role: userGroups[0].role,
+        slug: userGroups[0].groups.slug
+      };
+    }
   
     const clientPayload = {
       id: user.id,
       email: user.email,
       userName: user.userName,
       role: user.role,
-      ssoProviders
+      ssoProviders,
+      needsOnboarding,
+      activeGroup,
+      groupCount: userGroups.length
     };
   
     const tokens = generateTokenPair(clientPayload);
@@ -492,8 +580,18 @@ const openSession = catchAsync ( async (req, res, next) => {
     // Gửi cookie xuống client
     httpOnlyResponse(res, 'refreshToken', tokens.refreshToken, Constants.TIME_PICKER._7day_ms);
     httpOnlyResponse(res, 'clientInformation', JSON.stringify(clientPayload), Constants.TIME_PICKER._7day_ms);
+    
+    // Set active group cookie if available
+    if (activeGroup) {
+      httpOnlyResponse(res, 'activeGroup', JSON.stringify(activeGroup), Constants.TIME_PICKER._7day_ms);
+    }
   
-    return successResponse(res, { accessToken: tokens.accessToken }, 'Login successful');
+    return successResponse(res, { 
+      accessToken: tokens.accessToken,
+      needsOnboarding,
+      activeGroup,
+      groupCount: userGroups.length
+    }, 'Login successful');
   } catch (error) {
     next(error)
   }

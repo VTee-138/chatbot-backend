@@ -136,8 +136,14 @@ const startServer = async () => {
     // Test database connection
 const prisma = require('./config/database');
 const { checkNodeMailer } = require('./utils/checkConfiguration') 
+const { seedPlans } = require('./utils/seedPlans');
+
 await prisma.$connect();
     console.log("✅ Database connected successfully");
+    
+    // Seed default plans if not exist
+    await seedPlans();
+    
     checkRedis();
     checkNodeMailer();
     const server = http.createServer(app);

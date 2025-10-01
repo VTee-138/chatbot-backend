@@ -1,5 +1,6 @@
 const express = require('express');
 const {
+  createFirstGroup,
   createGroup,
   getUserGroups,
   getGroupById,
@@ -10,16 +11,27 @@ const {
   updateMemberRole,
   removeMember,
   leaveGroup,
+  switchActiveGroup,
+  getActiveGroup,
 } = require('../controllers/groupController');
 const { authenticate, requireGroupMember } = require('../middleware/auth');
 
 const groupRouter = express.Router();
 
-// Create group
+// Create first group (onboarding)
+groupRouter.post('/onboarding', authenticate, createFirstGroup);
+
+// Create additional group
 groupRouter.post('/', authenticate, createGroup);
 
 // Get user's groups
 groupRouter.get('/', authenticate, getUserGroups);
+
+// Get active group
+groupRouter.get('/active', authenticate, getActiveGroup);
+
+// Switch active group
+groupRouter.post('/:groupId/switch', authenticate, switchActiveGroup);
 
 // Get group by id
 groupRouter.get(
