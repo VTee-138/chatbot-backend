@@ -79,11 +79,6 @@ class ZaloController {
       });
     }
   }
-
-  /**
-   * Handle Zalo OAuth callback
-   * GET /api/v1/zalo/callback
-   */
   async handleZaloCallback(req, res) {
     try {
       const { code, state, oa_id } = req.query;
@@ -94,32 +89,14 @@ class ZaloController {
           message: 'Missing code or state parameter'
         });
       }
-
-      // Retrieve stored PKCE data
-      const pkceData = pkceStore.get(state);
-      if (!pkceData) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid or expired state parameter'
-        });
-      }
-
-      const { codeVerifier, groupId, userId } = pkceData;
-      pkceStore.delete(state); // Use once
-
-      // Exchange code for access token
-      const redirectUri = process.env.NODE_ENV === 'production'
-        ? process.env.ZALO_REDIRECT_URI_PROD
-        : process.env.ZALO_REDIRECT_URI_DEV;
-
       const tokenResponse = await axios.post(
         'https://oauth.zaloapp.com/v4/oa/access_token',
         new URLSearchParams({
           grant_type: 'authorization_code',
           app_id: process.env.ZALO_APP_ID,
           code: code,
-          code_verifier: codeVerifier,
-        }),
+          code_verifier: codeVerifier
+        }).toString(),
         {
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -127,63 +104,57 @@ class ZaloController {
           }
         }
       );
-
       const { access_token, refresh_token, expires_in } = tokenResponse.data;
-
       if (!access_token) {
         throw new Error('Failed to retrieve access token from Zalo');
       }
-
-      // Get OA information
       const oaInfoResponse = await axios.get(
         'https://openapi.zalo.me/v2.0/oa/getoa',
-        {
-          headers: {
-            'access_token': access_token
-          }
-        }
+        { headers: { 'access_token': access_token } }
       );
-
       const oaInfo = oaInfoResponse.data.data;
       const oaName = oaInfo.name || `Zalo OA ${oa_id}`;
       const oaAvatar = oaInfo.avatar || null;
-
-      // Calculate token expiration
       const expiresAt = new Date(Date.now() + (expires_in - 300) * 1000);
-
-      // Create channel in database
-      const channel = await prisma.channels.create({
-        data: {
-          id: `zalo_oa_${oa_id}_${Date.now()}`,
-          name: oaName,
-          provider: 'ZALO',
-          providerChannelId: oa_id,
-          groupId: groupId,
-          status: 'ACTIVE',
-          createdAt: new Date(),
-          updatedAt: new Date()
+      await prisma.zalo_oa_tokens.upsert({
+        where: { oa_id: String(oa_id) },
+        update: {
+          access_token,
+          refresh_token,
+          expires_at: expiresAt
+        },
+        create: {
+          oa_id: String(oa_id),
+          access_token,
+          refresh_token,
+          expires_at: expiresAt
         }
       });
 
-      console.log('✅ Zalo OA connected successfully:', {
-        channelId: channel.id,
-        oaId: oa_id,
-        oaName: oaName
-      });
+      console.log('✅ Zalo OA token saved successfully:', { oaId: oa_id });
 
-      // Redirect to frontend with success
+      // Lưu OA vào session (frontend)
+      if (!req.session.connectedAccounts) {
+        req.session.connectedAccounts = { oas: {}, personal: {} };
+      }
+      req.session.connectedAccounts.oas[oa_id] = {
+        name: oaName,
+        avatar: oaAvatar,
+        type: 'oa'
+      };
+
+      // Redirect về frontend
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
       const redirectUrl = new URL('/dashboard', frontendUrl);
       redirectUrl.searchParams.set('channel_connected', 'true');
-      redirectUrl.searchParams.set('channel_id', channel.id);
+      redirectUrl.searchParams.set('channel_id', oa_id);
       redirectUrl.searchParams.set('channel_name', oaName);
 
       return res.redirect(redirectUrl.toString());
 
     } catch (error) {
       console.error('Error handling Zalo callback:', error.response?.data || error.message);
-      
-      // Redirect to frontend with error
+
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
       const redirectUrl = new URL('/dashboard', frontendUrl);
       redirectUrl.searchParams.set('channel_error', 'true');
@@ -233,12 +204,12 @@ class ZaloController {
         case 'user_send_gif':
           await this.handleIncomingMessage(channel, event);
           break;
-        
+
         case 'oa_send_text':
         case 'oa_send_image':
           await this.handleOutgoingMessage(channel, event);
           break;
-        
+
         default:
           console.log('ℹ️ Unhandled event type:', event_name);
       }
@@ -400,7 +371,7 @@ class ZaloController {
 
       // Save outgoing message
       let messageContent = message.text || JSON.stringify(message);
-      
+
       await prisma.messages.create({
         data: {
           id: `msg_zalo_out_${timestamp}_${Date.now()}`,

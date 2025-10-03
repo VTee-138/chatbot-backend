@@ -63,9 +63,9 @@ model channels {
   provider          ChannelProvider
   providerChannelId String
   groupId           String
-  status            ChannelStatus   @default(ACTIVE)
   createdAt         DateTime        @default(now())
   updatedAt         DateTime
+  status            ChannelStatus   @default(ACTIVE)
   groups            groups          @relation(fields: [groupId], references: [id], onDelete: Cascade)
   conversations     conversations[]
 
@@ -110,11 +110,11 @@ model conversations {
   providerAdId               String?
   ai_usage_logs              ai_usage_logs[]
   conversation_read_statuses conversation_read_statuses[]
-  messages                   messages[]
   group_members              group_members?               @relation(fields: [assigneeId], references: [id])
   channels                   channels                     @relation(fields: [channelId], references: [id], onDelete: Cascade)
   customers                  customers                    @relation(fields: [customerId], references: [id], onDelete: Cascade)
   groups                     groups                       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  messages                   messages[]
 
   @@index([assigneeId])
   @@index([groupId])
@@ -301,18 +301,25 @@ model Country {
 }
 
 model messages {
-  id              String        @id
-  conversationId  String
-  senderId        String?
-  content         String
-  messageType     MessageType   @default(TEXT)
-  direction       Direction     @default(INCOMING)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime
-  conversations   conversations @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  
+  id             String        @id
+  conversationId String
+  senderId       String?
+  content        String
+  messageType    MessageType   @default(TEXT)
+  direction      Direction     @default(INCOMING)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime
+  conversations  conversations @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
   @@index([conversationId])
   @@index([createdAt])
+}
+
+model zalo_oa_tokens {
+  oa_id         String   @id
+  access_token  String
+  refresh_token String
+  expires_at    DateTime @db.Timestamptz(6)
 }
 
 enum Role {
