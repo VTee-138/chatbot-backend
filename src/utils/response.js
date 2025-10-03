@@ -26,19 +26,36 @@ const successResponse = (res, data = null, message = 'Success', statusCode = 200
  * @param {Number} statusCode - HTTP status code
  */
 const httpOnlyResponse = (res, tag, data = null, expiresInMs= 60*1000) =>{ 
-  res.cookie(tag, data, { 
+  const cookieOptions = {
     httpOnly: true,  
     maxAge: expiresInMs,
     secure: config.NODE_ENV === 'production',
-    sameSite: 'strict'
-  })
+    sameSite: config.NODE_ENV === 'production' ? 'strict' : 'lax',
+    path: '/',  // CRITICAL: Must match when clearing cookies
+  };
+  
+  // Add domain only in production if needed
+  if (config.NODE_ENV === 'production' && config.COOKIE_DOMAIN) {
+    cookieOptions.domain = config.COOKIE_DOMAIN;
+  }
+  
+  res.cookie(tag, data, cookieOptions);
 }
+
 const httpOnlyRevoke = (res, tag) => {
-  res.clearCookie(tag, {
+  const cookieOptions = {
     httpOnly: true,  
     secure: config.NODE_ENV === 'production',
-    sameSite: 'strict'
-  })
+    sameSite: config.NODE_ENV === 'production' ? 'strict' : 'lax',
+    path: '/'  // CRITICAL: Must match when setting cookies
+  };
+  
+  // Add domain only in production if needed
+  if (config.NODE_ENV === 'production' && config.COOKIE_DOMAIN) {
+    cookieOptions.domain = config.COOKIE_DOMAIN;
+  }
+  
+  res.clearCookie(tag, cookieOptions);
 }
 
 /**

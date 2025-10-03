@@ -99,12 +99,11 @@ if (config.NODE_ENV === 'development') {
 // Custom request logger
 app.use(requestLogger);
 
-app.use(`${config.API_PREFIX}/${config.API_VERSION}`, router)
+// API routes - Use consistent routing
+app.use(`${config.API_PREFIX}/${config.API_VERSION}`, router);
+
 // API Documentation with Swagger
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, swaggerOptions));
-
-// API routes
-app.use('/api', routes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -133,6 +132,13 @@ app.use(errorHandler);
 // Start server
 const startServer = async () => {
   try {
+    // Validate configuration before starting
+    const ConfigValidator = require('./utils/configValidator');
+    console.log('🔍 Validating configuration...');
+    ConfigValidator.validate(config);
+    ConfigValidator.logConfig(config);
+    ConfigValidator.checkServices(config);
+    
     // Test database connection
 const prisma = require('./config/database');
 const { checkNodeMailer } = require('./utils/checkConfiguration') 

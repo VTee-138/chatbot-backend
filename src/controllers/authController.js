@@ -14,6 +14,7 @@ const TwoFAService = require('../services/2FAService');
 const { getConnectionName } = require('ioredis/built/cluster/util');
 const { rateLimiterAuth, rateLimiterGeneral } = require('../config/limiter');
 const { twoFactorEnable } = require('./userController');
+const logger = require('../utils/logger');
 /**
  * Verify Email Sent
  */
@@ -186,48 +187,185 @@ const login = catchAsync(async (req, res, next) => {
 const refreshToken = catchAsync(async (req, res) => {
   // Get user's cookies
   const cookieRefreshToken = req.cookies.refreshToken
-  const cookieUserInformation = JSON.parse(req.cookies.clientInformation)
+  const cookieClientInformation = req.cookies.clientInformation
 
-  // Check khả nghi
+  logger.log('🔄 Refresh token attempt');
+  logger.debug('🍪 All cookies received:', Object.keys(req.cookies));
+  logger.debug('📋 RefreshToken cookie:', cookieRefreshToken ? 'EXISTS' : 'MISSING');
+  logger.debug('📋 ClientInformation cookie:', cookieClientInformation ? 'EXISTS' : 'MISSING');
+
+  // Check missing cookies
   if (!cookieRefreshToken) {
-    throw new ErrorResponse(Constants.MESSAGES._UNAUTHORIZED, Constants.UNAUTHORIZED)
+    logger.error('❌ Missing refresh token cookie');
+    return errorResponse(res, 'Refresh token not found. Please login again.', 401);
   }
+
+  if (!cookieClientInformation) {
+    logger.error('❌ Missing client information cookie');
+    return errorResponse(res, 'Client information not found. Please login again.', 401);
+  }
+
+  let cookieUserInformation;
   try {
-    // Check trong Redis xem có còn hạn hay không
-    const key = await redis.get(`refresh:${cookieUserInformation.id}`)
-    const checker = await comparePassword(cookieRefreshToken, key)
-    if (!checker) throw new ErrorResponse(Constants.MESSAGES._UNAUTHORIZED, Constants.UNAUTHORIZED)
+    cookieUserInformation = JSON.parse(cookieClientInformation);
+  } catch (parseError) {
+    logger.error('❌ Failed to parse client information:', parseError.message);
+    return errorResponse(res, 'Invalid client information format', 400);
+  }
+  
+  try {
+    // Validate user information structure
+    if (!cookieUserInformation.id || !cookieUserInformation.email || !cookieUserInformation.userName) {
+      logger.error('❌ Invalid user information structure');
+      return errorResponse(res, 'Invalid user session data', 400);
+    }
 
-    // Sinh token mới nếu thỏa mãn điều kiện
-    const tokens = generateTokenPair(
-      {
-        id: cookieUserInformation.id, 
-        email: cookieUserInformation.email, 
-        userName: cookieUserInformation.userName, 
-        role: cookieUserInformation.role
-      }); 
+    logger.debug(`🔍 Checking refresh token for user: ${cookieUserInformation.userName} (${cookieUserInformation.id})`);
 
-    // Hash lại refresh token
-    const hashToken = await hashPassword(tokens.refreshToken)
-    await redis.set(`refresh:${cookieUserInformation.id}`, hashToken.valueOf(), 'EX', 7*24*60*60)
+    // Check Redis with better error handling
+    let storedHashedToken;
+    try {
+      storedHashedToken = await redis.get(`refresh:${cookieUserInformation.id}`)
+    } catch (redisError) {
+      // Redis connection error - critical
+      logger.error('❌ Redis connection error:', redisError.message);
+      return errorResponse(res, 'Service temporarily unavailable. Please try again.', 503);
+    }
+    
+    if (!storedHashedToken) {
+      logger.error('❌ No refresh token found in Redis for user:', cookieUserInformation.id);
+      
+      // Clear invalid cookies
+      httpOnlyRevoke(res, "refreshToken");
+      httpOnlyRevoke(res, "clientInformation");
+      
+      return errorResponse(res, 'Session expired. Please login again.', 401);
+    }
 
-    // Cập nhật refresh token mới vào cookie
-    httpOnlyResponse(res, "refreshToken", tokens.refreshToken, 7*24*60*60*1000)
-    httpOnlyResponse(res, 
-      "clientInformation", 
-      JSON.stringify({
-        id: cookieUserInformation.id, 
-        email: cookieUserInformation.email, 
-        userName: cookieUserInformation.userName, 
-        role: cookieUserInformation.role
-      }), 7*24*60*60*1000)
+    const isValidRefreshToken = await comparePassword(cookieRefreshToken, storedHashedToken)
+    if (!isValidRefreshToken) {
+      logger.error('❌ Refresh token verification failed for user:', cookieUserInformation.id);
+      
+      // Clear invalid cookies and Redis entry
+      httpOnlyRevoke(res, "refreshToken");
+      httpOnlyRevoke(res, "clientInformation");
+      
+      try {
+        await redis.del(`refresh:${cookieUserInformation.id}`);
+      } catch (redisError) {
+        logger.warn('⚠️ Failed to delete refresh token from Redis:', redisError.message);
+        // Continue - not critical
+      }
+      
+      return errorResponse(res, 'Invalid refresh token. Please login again.', 401);
+    }
+
+    logger.log('✅ Refresh token verified, generating new tokens...');
+
+    // Get fresh user data from database to ensure accuracy
+    const user = await prisma.user.findUnique({
+      where: { id: cookieUserInformation.id },
+      select: {
+        id: true,
+        email: true,
+        userName: true,
+        role: true
+      }
+    });
+
+    if (!user) {
+      logger.error('❌ User not found:', cookieUserInformation.id);
+      
+      // Clear cookies and Redis entry for non-existent user
+      httpOnlyRevoke(res, "refreshToken");
+      httpOnlyRevoke(res, "clientInformation");
+      try {
+        await redis.del(`refresh:${cookieUserInformation.id}`);
+      } catch (redisError) {
+        logger.warn('⚠️ Failed to delete from Redis:', redisError.message);
+      }
+      
+      return errorResponse(res, 'User account not found. Please login again.', 401);
+    }
+
+    // Get user's SSO providers
+    const ssoProviders = await prisma.ssoAccount.findMany({
+      where: { userId: user.id },
+      select: { provider: true }
+    });
+
+    // Get user's groups for updated payload
+    const userGroups = await prisma.group_members.findMany({
+      where: { userId: user.id },
+      include: {
+        groups: {
+          select: {
+            id: true,
+            name: true,
+            slug: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    let needsOnboarding = userGroups.length === 0;
+    let activeGroup = null;
+
+    if (userGroups.length > 0) {
+      activeGroup = {
+        id: userGroups[0].groups.id,
+        name: userGroups[0].groups.name,
+        role: userGroups[0].role,
+        slug: userGroups[0].groups.slug
+      };
+    }
+
+    // Create updated payload with fresh data
+    const updatedPayload = {
+      id: user.id,
+      email: user.email,
+      userName: user.userName,
+      role: user.role,
+      ssoProviders: ssoProviders.map(s => s.provider),
+      needsOnboarding,
+      activeGroup,
+      groupCount: userGroups.length
+    };
+
+    // Generate new token pair
+    const tokens = generateTokenPair(updatedPayload);
+
+    // Hash and store new refresh token in Redis
+    const newHashedToken = await hashPassword(tokens.refreshToken)
+    await redis.set(`refresh:${user.id}`, newHashedToken.valueOf(), 'EX', Constants.TIME_PICKER._7day_secs)
+
+    // Update cookies with new tokens and fresh user data
+    httpOnlyResponse(res, "refreshToken", tokens.refreshToken, Constants.TIME_PICKER._7day_ms)
+    httpOnlyResponse(res, "clientInformation", JSON.stringify(updatedPayload), Constants.TIME_PICKER._7day_ms)
+
+    console.log(`✅ Access token refreshed successfully for user: ${user.userName}`);
 
     return successResponse(res, {
       accessToken: tokens.accessToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        userName: user.userName,
+        needsOnboarding,
+        activeGroup,
+        groupCount: userGroups.length
+      }
     }, 'Token refreshed successfully');
   } catch (err) {
-    console.error('Refresh token error: ', err.message);
-    next(err)
+    console.error('❌ Refresh token error:', err.message);
+    console.error('❌ Error stack:', err.stack);
+    
+    // Clear cookies on any error
+    httpOnlyRevoke(res, "refreshToken");
+    httpOnlyRevoke(res, "clientInformation");
+    
+    return errorResponse(res, 'Failed to refresh token. Please login again.', 500);
   }
 });
 
@@ -287,14 +425,49 @@ const forgot = catchAsync( async(req, res, next) =>{
  * Logout user
  */
 const logout = catchAsync(async (req, res) => {
-  const id = cookieHelper.getClientId(req)
-  // Xóa cookie session ở client
-  rateLimiterAuth.delete(req.ip)
-  rateLimiterGeneral.delete(req.ip)
-  await redis.del(`refresh:${id}`)
-  httpOnlyRevoke(res, "refreshToken")
-  httpOnlyRevoke(res, "clientInformation")
-  return successResponse(res, null, 'Logout successful');
+  console.log('🚪 Logout request received');
+  
+  try {
+    // Get user ID from cookies or auth token
+    const id = cookieHelper.getClientId(req);
+    
+    if (id) {
+      console.log(`🔄 Cleaning up session for user: ${id}`);
+      
+      // Delete refresh token from Redis
+      await redis.del(`refresh:${id}`);
+      console.log('✅ Refresh token deleted from Redis');
+      
+      // Delete any other user-related cache
+      await redis.del(`session:${id}`);
+      await redis.del(`2fa:${id}`);
+      
+      // Clear rate limiting data for this IP
+      rateLimiterAuth.delete(req.ip);
+      rateLimiterGeneral.delete(req.ip);
+    } else {
+      console.log('⚠️ No user ID found in cookies, clearing cookies anyway');
+    }
+    
+    // Clear all auth-related cookies
+    httpOnlyRevoke(res, "refreshToken");
+    httpOnlyRevoke(res, "clientInformation");
+    httpOnlyRevoke(res, "activeGroup");
+    httpOnlyRevoke(res, "forgotEmail");
+    httpOnlyRevoke(res, "registerEmail");
+    
+    console.log('✅ All cookies cleared');
+    console.log('✅ Logout completed successfully');
+    
+    return successResponse(res, null, 'Logout successful');
+  } catch (error) {
+    console.error('❌ Logout error:', error);
+    // Even if there's an error, still clear cookies
+    httpOnlyRevoke(res, "refreshToken");
+    httpOnlyRevoke(res, "clientInformation");
+    httpOnlyRevoke(res, "activeGroup");
+    return successResponse(res, null, 'Logout completed with errors');
+  }
 });
 
 /**
@@ -307,27 +480,7 @@ const getProfile = catchAsync(async (req, res) => {
     return errorResponse(res, 'User information not found in request', 400);
   }
 
-  // Development mode - return mock data
-  if (config.NODE_ENV === 'development' && req.user.email === 'local@test.com') {
-    const mockProfile = {
-      id: req.user.id,
-      email: req.user.email,
-      userName: 'DeveloperUser',
-      avatarUrl: null,
-      role: 'USER',
-      emailVerifiedAt: new Date(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      twoFactorBackupCodes: null,
-      twoFactorEnabled: false,
-      twoFactorSecret: null,
-    };
-    
-    console.log('🚀 Development mode - returning mock profile');
-    return successResponse(res, mockProfile, 'Profile retrieved successfully (development mode)');
-  }
-
-  // Production mode - get real user from database
+  // Always get real user from database - no more mock users
   const user = await prisma.user.findUnique({
     where: { id: req.user.id },
     select: {
@@ -346,8 +499,11 @@ const getProfile = catchAsync(async (req, res) => {
   });
 
   if (!user) {
+    console.error(`❌ User not found in database with ID: ${req.user.id}`);
     return errorResponse(res, 'User not found in database', 404);
   }
+
+  console.log(`✅ Found user in database: ${user.userName} (${user.email})`);
 
   // Get user's groups
   const userGroups = await prisma.group_members.findMany({
@@ -363,11 +519,15 @@ const getProfile = catchAsync(async (req, res) => {
     }
   });
 
+  console.log(`📁 User has ${userGroups.length} groups`);
+
   // Get SSO providers
   const ssoProviders = await prisma.ssoAccount.findMany({
     where: { userId: user.id },
     select: { provider: true }
   });
+
+  console.log(`🔗 User has SSO providers: ${ssoProviders.map(s => s.provider).join(', ')}`);
 
   const profileData = {
     ...user,
@@ -379,7 +539,7 @@ const getProfile = catchAsync(async (req, res) => {
     needsOnboarding: userGroups.length === 0
   };
   
-  console.log('✅ Production mode - returning full profile with groups');
+  console.log(`✅ Returning full profile for user: ${user.userName}`);
   return successResponse(res, profileData, 'Profile retrieved successfully');
 });
 
@@ -577,7 +737,9 @@ const openSession = catchAsync ( async (req, res, next) => {
     const hashed = await hashPassword(tokens.refreshToken);
     await redis.set(`refresh:${user.id}`, hashed, 'EX', Constants.TIME_PICKER._7day_secs);
   
-    // Gửi cookie xuống client
+    // Gửi cookies xuống client
+    // IMPORTANT: Set accessToken cookie cho middleware có thể check
+    httpOnlyResponse(res, 'accessToken', tokens.accessToken, Constants.TIME_PICKER._15mins_ms);
     httpOnlyResponse(res, 'refreshToken', tokens.refreshToken, Constants.TIME_PICKER._7day_ms);
     httpOnlyResponse(res, 'clientInformation', JSON.stringify(clientPayload), Constants.TIME_PICKER._7day_ms);
     
@@ -587,7 +749,7 @@ const openSession = catchAsync ( async (req, res, next) => {
     }
   
     return successResponse(res, { 
-      accessToken: tokens.accessToken,
+      accessToken: tokens.accessToken, // Vẫn trả về trong response để frontend có thể dùng
       needsOnboarding,
       activeGroup,
       groupCount: userGroups.length
@@ -812,9 +974,9 @@ const googleOAuthCallback = catchAsync(async (req, res, next) => {
     
     console.log(`✅ Google OAuth login successful for: ${ssoUser.userName}`)
     
-    // Redirect to frontend with success
+    // Redirect to OAuth callback page with success status
     const frontendUrl = config.FRONTEND_URL || 'http://localhost:3000'
-    const redirectUrl = `${frontendUrl}/dashboard?login=success&provider=google`
+    const redirectUrl = `${frontendUrl}/oauth/callback?status=success&provider=google`
     
     return res.redirect(redirectUrl)
     
@@ -934,15 +1096,68 @@ const loginSSO = catchAsync( async (req, res, next) => {
   }
 })
 const checkSession = catchAsync ( async ( req, res ) => {
-  // Get fields
-  const token = cookieHelper.getRefreshToken(req)
-  const id = cookieHelper.getClientId(req)
+  console.log('🔍 Session check requested');
+  console.log('🍪 All cookies:', Object.keys(req.cookies));
+  
+  // If JWT authentication passed (req.user exists), session is valid
+  if (req.user && req.user.id) {
+    console.log('✅ Session verified via JWT token for user:', req.user.userName);
+    
+    // Check if user still exists in database
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id }
+    });
+    
+    if (!user) {
+      console.log('❌ User not found in database');
+      return errorResponse(res, "User not found", 404);
+    }
+    
+    console.log('✅ User found in database, session is valid');
+    return successResponse(res, { 
+      sessionValid: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        userName: user.userName,
+        role: user.role
+      }
+    }, "Session is active");
+  }
+  
+  // Fallback: Check cookies (for backward compatibility)
+  console.log('⚠️ No JWT token, checking cookies...');
+  
+  const token = req.cookies.refreshToken;
+  const clientInfo = req.cookies.clientInformation;
+  
+  console.log('📋 Refresh token from cookies:', token ? 'EXISTS' : 'MISSING');
+  console.log('📋 Client info from cookies:', clientInfo ? 'EXISTS' : 'MISSING');
+  
+  if (!token || !clientInfo) {
+    console.log('❌ Missing required cookies for session check');
+    return errorResponse(res, "No active session found", 401);
+  }
+  
+  let id;
+  try {
+    const parsed = JSON.parse(clientInfo);
+    id = parsed.id;
+  } catch (err) {
+    console.log('❌ Failed to parse client information');
+    return errorResponse(res, "Invalid session data", 400);
+  }
+  
   const refreshHash = await redis.get(`refresh:${id}`)
+  console.log('📋 Redis refresh token:', refreshHash ? 'EXISTS' : 'MISSING');
+  
   // Check fields
   if (!refreshHash) return errorResponse(res, "Session not available", Constants.BAD_REQUEST)
   const checker = await comparePassword(token, refreshHash)
+  console.log('✅ Session verification:', checker ? 'VALID' : 'INVALID');
+  
   // Return
-  if (checker) return successResponse(res)
+  if (checker) return successResponse(res, { sessionValid: true }, "Session is active")
   else return errorResponse(res, "Session not available", Constants.BAD_REQUEST)
 })
 const removeAllDevices = catchAsync ( async ( req, res ) => {
@@ -1079,6 +1294,57 @@ const twoFactorBackupCodeRegenerate = catchAsync ( async ( req, res, next) =>{
     next(error);
   }    
 })
+
+/**
+ * Debug endpoint to check cookies and session status
+ */
+const debugCookies = catchAsync(async (req, res) => {
+  console.log('🐛 Debug cookies endpoint called');
+  
+  const debugInfo = {
+    cookies: {
+      all: req.cookies,
+      refreshToken: req.cookies.refreshToken ? 'EXISTS' : 'MISSING',
+      clientInformation: req.cookies.clientInformation ? 'EXISTS' : 'MISSING',
+    },
+    headers: {
+      cookie: req.headers.cookie ? 'EXISTS' : 'MISSING',
+      origin: req.headers.origin,
+      referer: req.headers.referer,
+      userAgent: req.headers['user-agent']?.slice(0, 50)
+    },
+    redis: {},
+    recommendations: []
+  };
+  
+  // Check Redis if we have user ID
+  if (req.cookies.clientInformation) {
+    try {
+      const clientInfo = JSON.parse(req.cookies.clientInformation);
+      const redisKey = `refresh:${clientInfo.id}`;
+      const redisToken = await redis.get(redisKey);
+      debugInfo.redis.key = redisKey;
+      debugInfo.redis.exists = redisToken ? true : false;
+    } catch (error) {
+      debugInfo.redis.error = error.message;
+    }
+  }
+  
+  // Add recommendations
+  if (!req.cookies.refreshToken) {
+    debugInfo.recommendations.push('No refresh token cookie found. User needs to login.');
+  }
+  
+  if (!req.headers.cookie) {
+    debugInfo.recommendations.push('No Cookie header in request. Check if frontend is sending credentials: "include"');
+  }
+  
+  if (req.cookies.refreshToken && req.cookies.clientInformation && !debugInfo.redis.exists) {
+    debugInfo.recommendations.push('Cookies exist but no Redis session. Session may have expired.');
+  }
+  
+  return successResponse(res, debugInfo, 'Cookie debug information');
+})
 module.exports = {
   register,
   twoFactorBackupCodeRegenerate,
@@ -1101,5 +1367,6 @@ module.exports = {
   removeAllDevices,
   reAuthenticate,
   googleOAuthRedirect,
-  googleOAuthCallback
+  googleOAuthCallback,
+  debugCookies
 };

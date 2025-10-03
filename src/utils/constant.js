@@ -23,6 +23,7 @@ class Constants {
     static TIME_PICKER = {
         _30min: 30 * 60,
         _15min: 15 * 60,
+        _15mins_ms: 15 * 60 * 1000, // 15 minutes in milliseconds for accessToken
         _1day: 60*60*24,
         _7day_ms:7*60*60*24*1000,
         _7day_secs:7*60*60*24,

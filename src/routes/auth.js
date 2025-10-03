@@ -22,6 +22,7 @@ const {
   reAuthenticate,
   googleOAuthRedirect,
   googleOAuthCallback,
+  debugCookies,
 } = require("../controllers/authController");
 const {
   authenticate,
@@ -62,7 +63,7 @@ authRouter.post(
   login
 );
 authRouter.post("/refresh", refreshToken);
-authRouter.post("/logout", authenticate, logout);
+authRouter.post("/logout", logout); // Bỏ authenticate middleware vì đã check cookie trong controller
 
 authRouter.get("/profile", authenticate, getProfile);
 authRouter.put("/profile", authenticate, updateProfile);
@@ -126,4 +127,8 @@ authRouter.post(
   authenticate,
   twoFactorBackupCodeRegenerate
 );
+
+// Debug endpoint (development only)
+authRouter.get("/debug/cookies", debugCookies);
+
 module.exports = authRouter;

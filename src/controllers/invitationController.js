@@ -1,6 +1,7 @@
 const { successResponse, catchAsync } = require("../utils/response");
 const prisma = require("../config/database");
 const AppError = require("../utils/AppError");
+const invitationService = require('../services/invitationService');
 
 /**
  * @controller acceptInvitation
@@ -119,16 +120,18 @@ const declineInvitation = catchAsync(async (req, res, next) => {
  * Lấy danh sách các lời mời đang chờ xử lý của người dùng hiện tại
  */
 const listPendingInvitations = catchAsync(async (req, res) => {
-  // Middleware xác thực đã đặt thông tin user (bao gồm email) vào req.user
-  const userEmail =
-    req.user != null ? req.user.email : "anhtupham17.work@gmail.com";
+  const userEmail = req.user?.email;
+  
+  if (!userEmail) {
+    throw new AppError('User email not found', 400);
+  }
+
   const invitations = await prisma.invitations.findMany({
     where: {
       email: userEmail,
-      status: "PENDING", // Chỉ lấy các lời mời đang chờ
+      status: "PENDING",
     },
     include: {
-      // Lấy thêm thông tin của group (tổ chức) được mời vào
       groups: {
         select: {
           id: true,
@@ -137,12 +140,10 @@ const listPendingInvitations = catchAsync(async (req, res) => {
           logoUrl: true,
         },
       },
-      // Lấy thêm thông tin của người đã gửi lời mời
       users: {
-        // 'users' là tên quan hệ bạn đặt trong schema
         select: {
           id: true,
-          fullName: true,
+          userName: true,
           email: true,
           avatarUrl: true,
         },
@@ -153,6 +154,28 @@ const listPendingInvitations = catchAsync(async (req, res) => {
     },
   });
 
+  // Check for expired invitations and update them
+  const now = new Date();
+  const expiredInvitations = invitations.filter(inv => new Date(inv.expiresAt) < now);
+  
+  if (expiredInvitations.length > 0) {
+    await prisma.invitations.updateMany({
+      where: {
+        id: { in: expiredInvitations.map(inv => inv.id) }
+      },
+      data: { status: 'EXPIRED' }
+    });
+    
+    // Remove expired from result
+    const validInvitations = invitations.filter(inv => new Date(inv.expiresAt) >= now);
+    
+    return successResponse(
+      res,
+      validInvitations,
+      "Pending invitations retrieved successfully."
+    );
+  }
+
   return successResponse(
     res,
     invitations,
@@ -160,8 +183,27 @@ const listPendingInvitations = catchAsync(async (req, res) => {
   );
 });
 
+/**
+ * Resend invitation email
+ */
+const resendInvitationEmail = catchAsync(async (req, res) => {
+  const { invitationId } = req.params;
+  const inviter = req.user;
+
+  const invitation = await invitationService.resendInvitation(invitationId, inviter);
+
+  return successResponse(res, {
+    invitation: {
+      id: invitation.id,
+      email: invitation.email,
+      expiresAt: invitation.expiresAt
+    }
+  }, 'Invitation email resent successfully');
+});
+
 module.exports = {
   listPendingInvitations,
   acceptInvitation,
   declineInvitation,
+  resendInvitationEmail,
 };

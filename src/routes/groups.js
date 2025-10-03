@@ -4,6 +4,8 @@ const {
   createGroup,
   getUserGroups,
   getGroupById,
+  getGroupStats,
+  getGroupChannels,
   updateGroup,
   deleteGroup,
   getGroupMembers,
@@ -13,6 +15,10 @@ const {
   leaveGroup,
   switchActiveGroup,
   getActiveGroup,
+  requestJoinGroup,
+  getJoinRequests,
+  approveJoinRequest,
+  rejectJoinRequest,
 } = require('../controllers/groupController');
 const { authenticate, requireGroupMember } = require('../middleware/auth');
 
@@ -33,12 +39,40 @@ groupRouter.get('/active', authenticate, getActiveGroup);
 // Switch active group
 groupRouter.post('/:groupId/switch', authenticate, switchActiveGroup);
 
+// Request to join group by owner email
+groupRouter.post('/join-request', authenticate, requestJoinGroup);
+
+// Get join requests for owned groups
+groupRouter.get('/join-requests', authenticate, getJoinRequests);
+
+// Approve join request
+groupRouter.post('/join-requests/:requestId/approve', authenticate, approveJoinRequest);
+
+// Reject join request
+groupRouter.post('/join-requests/:requestId/reject', authenticate, rejectJoinRequest);
+
 // Get group by id
 groupRouter.get(
   '/:grId',
   authenticate,
   requireGroupMember(['OWNER', 'ADMIN', 'MEMBER']),
   getGroupById
+);
+
+// Get group statistics
+groupRouter.get(
+  '/:groupId/stats',
+  authenticate,
+  requireGroupMember(['OWNER', 'ADMIN', 'MEMBER']),
+  getGroupStats
+);
+
+// Get group channels
+groupRouter.get(
+  '/:groupId/channels',
+  authenticate,
+  requireGroupMember(['OWNER', 'ADMIN', 'MEMBER']),
+  getGroupChannels
 );
 
 // Get group members

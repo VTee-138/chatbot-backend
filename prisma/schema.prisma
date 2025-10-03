@@ -30,14 +30,14 @@ model User {
   sessions                  sessions[]
   ssoAccounts               ssoAccount[]
 
-  @@map("users")  
+  @@map("users")
 }
 
 model ssoAccount {
-  provider       String
-  userId         String
-  providerId     String
-  user           User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider   String
+  userId     String
+  providerId String
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([provider, providerId])
   @@map("sso_accounts")
@@ -63,12 +63,14 @@ model channels {
   provider          ChannelProvider
   providerChannelId String
   groupId           String
+  status            ChannelStatus   @default(ACTIVE)
   createdAt         DateTime        @default(now())
   updatedAt         DateTime
   groups            groups          @relation(fields: [groupId], references: [id], onDelete: Cascade)
   conversations     conversations[]
 
   @@unique([provider, providerChannelId])
+  @@index([groupId])
 }
 
 model contacts {
@@ -108,10 +110,14 @@ model conversations {
   providerAdId               String?
   ai_usage_logs              ai_usage_logs[]
   conversation_read_statuses conversation_read_statuses[]
+  messages                   messages[]
   group_members              group_members?               @relation(fields: [assigneeId], references: [id])
   channels                   channels                     @relation(fields: [channelId], references: [id], onDelete: Cascade)
   customers                  customers                    @relation(fields: [customerId], references: [id], onDelete: Cascade)
   groups                     groups                       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([assigneeId])
+  @@index([groupId])
 }
 
 model credit_purchases {
@@ -178,23 +184,27 @@ model group_members {
 model groups {
   id                String             @id
   name              String
-  slug              String             @unique // url-friendly name, dùng truy cập nhanh
+  slug              String             @unique
   logoUrl           String?
-  creatorId         String  
+  creatorId         String
   createdAt         DateTime           @default(now())
   updatedAt         DateTime
   autoAssignEnabled Boolean            @default(false)
   receptionMode     ReceptionMode      @default(MANUAL)
   creditBalance     Float              @default(0)
+  countryCode       String?
+  emailContact      String
+  phoneContact      String
   ai_usage_logs     ai_usage_logs[]
   channels          channels[]
   conversations     conversations[]
   credit_purchases  credit_purchases[]
   customers         customers[]
   group_members     group_members[]
+  Country           Country?           @relation(fields: [countryCode], references: [code])
   users             User               @relation(fields: [creatorId], references: [id])
   invitations       invitations[]
-  subscriptions     subscriptions?
+  subscriptions     subscriptions[]
   tags              tags[]
 }
 
@@ -259,7 +269,7 @@ model sessions {
 
 model subscriptions {
   id                     String             @id
-  groupId                String             @unique
+  groupId                String
   planId                 String
   stripeCustomerId       String?            @unique
   stripeSubscriptionId   String?            @unique
@@ -269,6 +279,8 @@ model subscriptions {
   updatedAt              DateTime
   groups                 groups             @relation(fields: [groupId], references: [id], onDelete: Cascade)
   plans                  plans              @relation(fields: [planId], references: [id])
+
+  @@index([groupId])
 }
 
 model tags {
@@ -280,6 +292,27 @@ model tags {
   customers customers[] @relation("CustomerToTag")
 
   @@unique([groupId, name])
+}
+
+model Country {
+  code   String   @id
+  name   String
+  groups groups[]
+}
+
+model messages {
+  id              String        @id
+  conversationId  String
+  senderId        String?
+  content         String
+  messageType     MessageType   @default(TEXT)
+  direction       Direction     @default(INCOMING)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime
+  conversations   conversations @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  
+  @@index([conversationId])
+  @@index([createdAt])
 }
 
 enum Role {
@@ -298,6 +331,13 @@ enum ChannelProvider {
   ZALO
   INSTAGRAM
   WEBSITE_LIVECHAT
+}
+
+enum ChannelStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+  ERROR
 }
 
 enum ContactType {
@@ -334,4 +374,18 @@ enum SubscriptionStatus {
   CANCELED
   PAST_DUE
   INCOMPLETE
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+  AUDIO
+  VIDEO
+  STICKER
+}
+
+enum Direction {
+  INCOMING
+  OUTGOING
 }
