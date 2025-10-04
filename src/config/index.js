@@ -72,11 +72,34 @@ module.exports = {
   BASE_URL: process.env.BASE_URL || 'http://localhost:8000',
   FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3001',
   
-  // Cookie Configuration - FIX: Enhanced security
+  // Cookie Configuration - Production Ready
   COOKIE_DOMAIN: process.env.COOKIE_DOMAIN || undefined,
-  COOKIE_SECURE: process.env.NODE_ENV === 'production',
+  COOKIE_SECURE: process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production',
   COOKIE_SAME_SITE: process.env.COOKIE_SAME_SITE || (process.env.NODE_ENV === 'production' ? 'none' : 'lax'),
+  COOKIE_HTTP_ONLY: true,
+  COOKIE_PATH: '/',
+  
+  // Frontend Domain for Cookie (production)
+  FRONTEND_DOMAIN: process.env.FRONTEND_DOMAIN || undefined,
   
   // Session Configuration
   SESSION_MAX_AGE: parseInt(process.env.SESSION_MAX_AGE) || 7 * 24 * 60 * 60 * 1000, // 7 days
+  
+  // Production Cookie Settings
+  PRODUCTION_COOKIE_SETTINGS: {
+    secure: true,
+    sameSite: 'none',
+    httpOnly: true,
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+  },
+  
+  // Development Cookie Settings  
+  DEVELOPMENT_COOKIE_SETTINGS: {
+    secure: false,
+    sameSite: 'lax',
+    httpOnly: true,
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+  }
 }

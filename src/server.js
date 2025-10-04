@@ -60,12 +60,49 @@ app.use(helmet({
   },
 }));
 
-// CORS configuration
-app.use(cors({
-  origin: config.CORS_ORIGIN,
-  credentials: true,
+// CORS configuration - Enhanced for production
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = Array.isArray(config.CORS_ORIGIN) ? config.CORS_ORIGIN : [config.CORS_ORIGIN];
+    
+    // Log CORS check in development
+    if (config.NODE_ENV === 'development') {
+      console.log('🌐 CORS Check:', {
+        origin: origin,
+        allowed: allowedOrigins,
+        match: allowedOrigins.indexOf(origin) !== -1
+      });
+    }
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.warn('❌ CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS policy'));
+    }
+  },
+  credentials: true, // CRITICAL: Allow cookies
   optionsSuccessStatus: 200,
-}));
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: [
+    'Origin',
+    'X-Requested-With',
+    'Content-Type',
+    'Accept',
+    'Authorization',
+    'Cache-Control',
+    'Cookie',
+    'X-CSRF-Token'
+  ],
+  exposedHeaders: ['Set-Cookie'], // Allow frontend to read Set-Cookie headers
+  preflightContinue: false,
+  maxAge: 86400 // Cache preflight for 24 hours
+};
+
+app.use(cors(corsOptions));
 
 
 // // Saving session in Redis for performance improvement

@@ -9,6 +9,7 @@ const groupRouter = require('./groups');
 const channelRouter = require('./channels');
 const invitationRouter = require('./invitationRoutes');
 const healthRoutes = require('./health');
+const debugRoutes = require('./debug');
 
 const router = express.Router();
 
@@ -34,5 +35,10 @@ router.use('/invitations', invitationRouter);
 router.use('/api-keys', apiKeyRoutes);
 router.use('/zalo', zaloRouter);
 router.use('/users', userRouter);
+
+// Debug routes (only in development or when DEBUG_COOKIES is enabled)
+if (process.env.NODE_ENV === 'development' || process.env.DEBUG_COOKIES === 'true') {
+  router.use('/debug', debugRoutes);
+}
 
 module.exports = router;
