@@ -2,7 +2,7 @@ const prisma = require('../config/database')
 class UserDBModel{
     async updateVerifiedByEmail(email){
         return await prisma.user.update({
-            where: {email: email.toLowerCase()},
+            where: {email: email},
             data: {emailVerifiedAt: new Date()}
         })
     }
@@ -18,14 +18,14 @@ class UserDBModel{
         return await prisma.user.update({where: {email: email}, data: updateData})
     }
     async updatePassword(email, newPassword){
-        email = email.toLowerCase()
-        return await prisma.user.update({where: {email: email}, data: {passwordHash: newPassword}})
+        await prisma.user.update({where: {email: email}, data: {passwordHash: newPassword, updatedAt: new Date()}})
     }
     async updatePasswordByID(id, newPassword){
         await prisma.user.update({
             where: { id: id },
             data: {
-                passwordHash: newPassword
+                passwordHash: newPassword,
+                updatedAt: new Date(),
             },
         })
     }
@@ -78,7 +78,6 @@ class UserDBModel{
         return await this.findUserById(ssoUser.userId)
     }
     async findUserByEmail(email){
-        email = email.toLowerCase()
         return await prisma.user.findUnique({where: {email}})
     }
     async findAccountWithUserName(userName){
@@ -90,8 +89,8 @@ class UserDBModel{
     async findUserById(id){
         return await prisma.user.findUnique({where: {id}})
     }
+    
     async registerNewUser(user){
-        if(user.email) user.email = user.email.toLowerCase()
         return await prisma.user.upsert({
             where: {
                 email: user.email
@@ -102,7 +101,6 @@ class UserDBModel{
         )
     }
     async createSSOAccount(provider, providerId, userInput){
-        if(userInput.email) userInput.email = userInput.email.toLowerCase()
         const newUser = await prisma.user.create({
             data: { 
                 userName: userInput.userName,
@@ -187,19 +185,5 @@ class UserDBModel{
         await this.deleteUserById(oldSSO.userId)
         await prisma.ssoAccount.update({where: {provider, providerId}, data: {userId: userId}})
     }
-    getProfile(data, role){
-        if (role === 'USER')
-        return {
-            id: data.id,
-            email: data.email,
-            name: data.userName,
-            phoneNumber: data.phoneNumber,
-            avatarUrl: data.avatarUrl,
-            twoFactorEnabled: data.twoFactorEnabled,
-            createdAt: data.createdAt
-        }
-        else return // chưa biết hướng
-    }
-    
  }
 module.exports = new UserDBModel()
