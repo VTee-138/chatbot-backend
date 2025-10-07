@@ -11,56 +11,81 @@ const groupDBServices = require('../services/groupDBServices');
 
 /**
  * Authentication middleware - verify JWT Access Token
+ * Supports both Authorization header (JWT) and cookie-based auth
  */
 const authenticate = async (req, res, next) => {
   try {
-    if (process.NODE_ENV === 'development') {
-      req.user = { id: 'cmfmj99ph0000upx88pjfrot4', email: 'local@test.com' };
-      req.mfa = true // fake user
-      return next();
-    }
-
+    let token = null;
+    let tokenSource = null;
+    
+    // Priority 1: Try to get token from Authorization header (JWT approach)
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return errorResponse(res, 'Access token is required', 401);
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+      tokenSource = 'Authorization header';
+      console.log('🔑 Token found in Authorization header');
+    }
+    
+    // Priority 2: Fallback to cookie-based auth
+    if (!token) {
+      try {
+        const refreshToken = cookieHelper.getRefreshToken(req);
+        if (refreshToken) {
+          token = refreshToken;
+          tokenSource = 'Cookie (refreshToken)';
+          console.log('🔑 Token found in cookie');
+        }
+      } catch (cookieError) {
+        // Cookie not found or invalid - continue to check if header token exists
+        console.log('🍪 No valid token in cookies, checking header...');
+      }
     }
 
-    if (!req.cookies.clientInformation) {
-      throw new ErrorResponse(Constants.MESSAGES._UNAUTHORIZED, Constants.UNAUTHORIZED);
+    // No token found in either location
+    if (!token) {
+      console.error('❌ No token found in Authorization header or cookies');
+      return errorResponse(res, 'Access token is required. Please login again.', 401);
     }
-
-    const token = authHeader.substring(7);
 
     try {
+      // Verify JWT token (both development and production)
       const decoded = verifyToken(token, 'access');
-      const clientId = cookieHelper.getClientId(req);
-      if (clientId !== decoded.id) {
-        throw new ErrorResponse(Constants.MESSAGES._UNAUTHORIZED, Constants.UNAUTHORIZED);
-      }
-
-      // 👇 Quan trọng: gắn user vào request
+      
+      console.log(`🔐 JWT Token verified from ${tokenSource}`);
+      console.log(`📧 User: ${decoded.userName || decoded.email} (ID: ${decoded.id})`);
+      
+      // Set user information from JWT payload
       req.user = {
         id: decoded.id,
-        email: decoded.email, // nếu có
-        role: decoded.role || null,
+        email: decoded.email,
+        userName: decoded.userName,
+        role: decoded.role,
+        ssoProviders: decoded.ssoProviders || [],
+        needsOnboarding: decoded.needsOnboarding || false,
+        activeGroup: decoded.activeGroup || null
       };
 
+      console.log(`✅ Authentication successful via ${tokenSource}`);
       next();
+
     } catch (jwtError) {
-      console.error("ERROR JWT MIDDLEWARE: ", jwtError.message);
-      return errorResponse(res, 'Invalid or expired token', 401); 
+      console.error("❌ JWT verification failed:", jwtError.message);
+      
+      // Provide specific error messages
+      if (jwtError.name === 'TokenExpiredError') {
+        return errorResponse(res, 'Access token has expired. Please refresh your token.', 401);
+      } else if (jwtError.name === 'JsonWebTokenError') {
+        return errorResponse(res, 'Invalid access token format.', 401);
+      } else {
+        return errorResponse(res, 'Token verification failed.', 401);
+      }
     }
   } catch (error) {
-    console.error('Authentication error:', error);
+    console.error('❌ Authentication middleware error:', error);
     return errorResponse(res, 'Authentication failed', 500);
   }
 };
 const authenticate2FA = catchAsync(async (req, res, next) => {
-    if (process.NODE_ENV === 'development') {
-      req.user = { id: 'cmfmj99ph0000upx88pjfrot4', email: 'local@test.com' };
-      req.mfa = true // fake user
-      return next();
-    }
   let token;
   // Lấy token từ header Authorization: Bearer <token>
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
@@ -87,9 +112,6 @@ const authenticate2FA = catchAsync(async (req, res, next) => {
  * @param {Array} roles - Allowed roles
  */
 const authorize = (roles = []) => {
-  if (process.env.NODE_ENV === 'development') {
-    return next();
-  }
   return (req, res, next) => {
     if (!req.user) {
       return errorResponse(res, 'Authentication required', 401);
@@ -105,9 +127,6 @@ const authorize = (roles = []) => {
  * API Key authentication middleware
  */
 const authenticateApiKey = async (req, res, next) => {
-  if (process.env.NODE_ENV === 'development') {
-    return next();
-  }
   try {
     const apiKey = req.headers['x-api-key'];
     
@@ -197,13 +216,13 @@ const requireGroupMember = (roles = []) => {
       //   return errorResponse(res, 'Authentication required', 401);
       // }
       const clientId = cookieHelper.getClientId(req)
-      const { id } = req.params;
+      const { grId } = req.params;
       
-      if (!id) {
+      if (!grId) {
         return errorResponse(res, 'Group ID is required', 400);
       }
       
-      const membership = await groupDBServices.getMemberInformation(clientId, id)
+      const membership = await groupDBServices.getMemberInformation(clientId, grId)
       
       if (!membership) {
         return errorResponse(res, 'You are not a member of this organization', 403);
