@@ -13,76 +13,28 @@ const groupDBServices = require('../services/groupDBServices');
  * Authentication middleware - verify JWT Access Token
  * Supports both Authorization header (JWT) and cookie-based auth
  */
-const authenticate = async (req, res, next) => {
+const authenticate = (req, res, next) => {
   try {
-    let token = null;
-    let tokenSource = null;
-    
-    // Priority 1: Try to get token from Authorization header (JWT approach)
     const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.substring(7);
-      tokenSource = 'Authorization header';
-      console.log('🔑 Token found in Authorization header');
-    }
-    
-    // Priority 2: Fallback to cookie-based auth
-    if (!token) {
-      try {
-        const refreshToken = cookieHelper.getRefreshToken(req);
-        if (refreshToken) {
-          token = refreshToken;
-          tokenSource = 'Cookie (refreshToken)';
-          console.log('🔑 Token found in cookie');
-        }
-      } catch (cookieError) {
-        // Cookie not found or invalid - continue to check if header token exists
-        console.log('🍪 No valid token in cookies, checking header...');
-      }
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return errorResponse(res, 'Authentication token is required', 401);
     }
 
-    // No token found in either location
-    if (!token) {
-      console.error('❌ No token found in Authorization header or cookies');
-      return errorResponse(res, 'Access token is required. Please login again.', 401);
-    }
+    const token = authHeader.substring(7); // Bỏ đi "Bearer "
 
-    try {
-      // Verify JWT token (both development and production)
-      const decoded = verifyToken(token, 'access');
-      
-      console.log(`🔐 JWT Token verified from ${tokenSource}`);
-      console.log(`📧 User: ${decoded.userName || decoded.email} (ID: ${decoded.id})`);
-      
-      // Set user information from JWT payload
-      req.user = {
-        id: decoded.id,
-        email: decoded.email,
-        userName: decoded.userName,
-        role: decoded.role,
-        ssoProviders: decoded.ssoProviders || [],
-        needsOnboarding: decoded.needsOnboarding || false,
-        activeGroup: decoded.activeGroup || null
-      };
+    // Giả sử bạn có một secret key được lưu trong biến môi trường
+    const decodedPayload = verifyToken(token, process.JWT_SECRET);
 
-      console.log(`✅ Authentication successful via ${tokenSource}`);
-      next();
+    // Gắn payload vào request để các hàm sau có thể dùng
+    req.user = decodedPayload; // payload sẽ có dạng { id, email, userName, ... }
 
-    } catch (jwtError) {
-      console.error("❌ JWT verification failed:", jwtError.message);
-      
-      // Provide specific error messages
-      if (jwtError.name === 'TokenExpiredError') {
-        return errorResponse(res, 'Access token has expired. Please refresh your token.', 401);
-      } else if (jwtError.name === 'JsonWebTokenError') {
-        return errorResponse(res, 'Invalid access token format.', 401);
-      } else {
-        return errorResponse(res, 'Token verification failed.', 401);
-      }
-    }
+    next();
   } catch (error) {
-    console.error('❌ Authentication middleware error:', error);
-    return errorResponse(res, 'Authentication failed', 500);
+    // Xử lý các lỗi token (hết hạn, không hợp lệ)
+    if (error.name === 'TokenExpiredError') {
+      return errorResponse(res, 'Token has expired', 401);
+    }
+    return errorResponse(res, 'Invalid token', 401);
   }
 };
 const authenticate2FA = catchAsync(async (req, res, next) => {

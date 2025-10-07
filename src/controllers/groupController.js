@@ -3,63 +3,53 @@ const { createSlug, generateMultipleSlugs } = require('../utils/crypto');
 const config = require('../config');
 const prisma = require('../config/database');
 const groupDBServices = require('../services/groupDBServices');
+const { generateTokenPair, generateToken, decodePayload, verifyToken } = require('../utils/jwt');
 const { Constants, ErrorResponse } = require('../utils/constant');
 const cookieHelper = require('../utils/cookieHelper');
 const countryDBServices = require('../services/countryDBServices');
 const userCredentialModel = require('../model/userCredentialModel');
 const { sendEmailToVerify } = require('../utils/mailService');
 const { EmailType, HtmlConverter } = require('../utils/mailConverter');
-const jwt = require('../utils/jwt');
 const invitationDBServices = require('../services/invitationDBServices');
 /**
  * Create new group
  */
 const createGroup = catchAsync(async (req, res, next) => {
-  const { name, slug, country, logo, email, phone} = req.body;
-  try {
-    // Ensure slug is unique
-    const nameExists = await groupDBServices.getNameState(name)
-    const slugExists = await groupDBServices.getSlugState(slug)
-    const clientId = cookieHelper.getClientId(req)
-    if (nameExists) throw new ErrorResponse("This name has been existed!", Constants.BAD_REQUEST)
-    // If slug exists, return error with output recommends slugs
-    if (slugExists) {
-      // Tìm các slugs mà pattern like %slug%
-      const slugs = await groupDBServices.getSlugsRelate(slug)
-  
-      // Gen ra 3 slug không nằm trong slugs này để recommend chon người dùng 
-      let newSlugs = []
-      while (newSlugs.length < 3){
-        const newSlug = generateMultipleSlugs(slug)
-        if (!slugs.slug.includes(newSlug) && !newSlugs.includes(newSlug)) {
-          newSlugs.push(newSlug);
-        }
+  const { name, slug, country, logo, email, phone } = req.body;
+  const clientId = req.user.id; 
+
+  const nameExists = await groupDBServices.getNameState(name);
+  if (nameExists) throw new ErrorResponse("This name has been existed!", Constants.BAD_REQUEST);
+
+  const slugExists = await groupDBServices.getSlugState(slug);
+  if (slugExists) {
+    const slugs = await groupDBServices.getSlugsRelate(slug);
+    let newSlugs = [];
+    while (newSlugs.length < 3) {
+      const newSlug = generateMultipleSlugs(slug);
+      if (!slugs.slug.includes(newSlug) && !newSlugs.includes(newSlug)) {
+        newSlugs.push(newSlug);
       }
-      return errorResponse(res, {
-        message: "Slugs exists!", 
-        valid_slugs: newSlugs
-      }, Constants.BAD_REQUEST)
     }
-
-    const countryCode = await countryDBServices.getCountryCodeByName(country)
-    if (!countryCode) throw new ErrorResponse("Country not found", Constants.NOT_FOUND)
-
-    // Create group with creator as owner
-    const group = await groupDBServices.createNewGroup(
-      { 
-        name, 
-        slug, 
-        logoUrl: logo, 
-        phoneContact: phone, 
-        emailContact: email, 
-        countryCode: countryCode.code
-      }, 
-      clientId)
-    
-    return successResponse(res, group, 'Group created successfully', 201);
-  } catch (error) {
-    next(error)
+    return errorResponse(res, {
+      message: "Slug exists!",
+      valid_slugs: newSlugs
+    }, Constants.BAD_REQUEST);
   }
+
+  const countryCode = await countryDBServices.getCountryCodeByName(country);
+  if (!countryCode) throw new ErrorResponse("Country not found", Constants.NOT_FOUND);
+
+  const group = await groupDBServices.createNewGroup({
+    name,
+    slug,
+    logoUrl: logo,
+    phoneContact: phone,
+    emailContact: email,
+    countryCode: countryCode.code
+  }, clientId);
+
+  return successResponse(res, group, 'Group created successfully', 201);
 });
 
 
@@ -67,30 +57,27 @@ const createGroup = catchAsync(async (req, res, next) => {
  * Get user's groups
  */
 const getUserGroups = catchAsync(async (req, res, next) => {
-  const clientId = cookieHelper.getClientId(req)
-  const groups = await groupDBServices.getMemberships(clientId)
-  
-  try {
-    const memberships = groups.map(group => ({
-      id: group.groups.id,
-      name: group.groups.name,
-      displayName: group.groups.name, // Chịu database không có 
-      country: 'VN',
-      logo: group.groups.logoUrl,
-      role: group.role, // Role user in group
-      createdAt: group.groups.createdAt,
-      updatedAt: group.groups.updatedAt,
-    }));
-    
-    const response = {
-      userId: clientId,
-      total: memberships.length,
-      groups: memberships
-    }
-    return successResponse(res, response, 'Groups retrieved successfully');
-  } catch (error) {
-    next(error)
-  }
+  // SỬA: Lấy clientId từ req.user
+  const clientId = req.user.id;
+  const groups = await groupDBServices.getMemberships(clientId);
+
+  const memberships = groups.map(group => ({
+    id: group.groups.id,
+    name: group.groups.name,
+    displayName: group.groups.name,
+    country: 'VN', // Cần làm rõ logic lấy country
+    logo: group.groups.logoUrl,
+    role: group.role,
+    createdAt: group.groups.createdAt,
+    updatedAt: group.groups.updatedAt,
+  }));
+
+  const response = {
+    userId: clientId,
+    total: memberships.length,
+    groups: memberships
+  };
+  return successResponse(res, response, 'Groups retrieved successfully');
 });
 
 /**
@@ -203,57 +190,57 @@ const deleteGroup = catchAsync(async (req, res, next) => {
  * Invite user to group
  */
 const inviteMember = catchAsync(async (req, res, next) => {
-    const { id } = req.params;
-    const clientId = cookieHelper.getClientId(req);
-    const { email, userName, role = 'MEMBER' } = req.body;
+  const { id } = req.params; // id của group
+  // SỬA: Lấy clientId của người mời từ req.user
+  const inviterId = req.user.id; 
+  const { email, userName, role = 'MEMBER' } = req.body;
 
-    try {
-      let user;
-      if (email) {
-          user = await userCredentialModel.findUserByEmail(email);
-      }
-      if (!user && userName) {
-          user = await userCredentialModel.findAccountWithUserName(userName);
-      }
-  
-      if (!user) {
-          return next(new ErrorResponse('User not found', Constants.NOT_FOUND));
-      }
-  
-      const existingMembership = await groupDBServices.isMemberExisted(user.id, id);
-      if (existingMembership) {
-          return next(new ErrorResponse('User is already a member of this group', Constants.CONFLICT));
-      }
-  
-      const invitationToken = jwt.generateToken({
-         userId: user.id, 
-         email: user.email, 
-         id, 
-         role 
-        }, 'invitation_mail');
-        const exp = jwt.getEXP(invitationToken)
-      invitationDBServices.createInvitation({
-          email: user.email,
-          groupId: id,
-          invitedById: clientId,
-          role,
-          token: invitationToken,
-          expiresAt: exp,
-      });
-  
-      sendEmailToVerify(
-          EmailType.GROUP_INVITATION,
-          config.URL_MAIL_PUBLIC, // This will be the domain
-          invitationToken, // This will be the code
-          user.email,
-          `You have been invited to join a group`,
-          HtmlConverter.GroupInvitation
-      );
-  
-      return successResponse(res, null, 'Invitation sent successfully');
-    } catch (error) {
-      next(error)
-    }
+  let userToInvite;
+  if (email) {
+    userToInvite = await userCredentialModel.findUserByEmail(email);
+  }
+  if (!userToInvite && userName) {
+    userToInvite = await userCredentialModel.findAccountWithUserName(userName);
+  }
+
+  if (!userToInvite) {
+    return next(new ErrorResponse('User not found', Constants.NOT_FOUND));
+  }
+
+  const existingMembership = await groupDBServices.isMemberExisted(userToInvite.id, id);
+  if (existingMembership) {
+    return next(new ErrorResponse('User is already a member of this group', Constants.CONFLICT));
+  }
+
+  // SỬA: Sử dụng nhất quán jwt utility đã import
+  const invitationToken = jwt.generateToken({
+    userId: userToInvite.id,
+    email: userToInvite.email,
+    groupId: id, // Sửa: Tên trường rõ ràng hơn
+    role
+  }, 'invitation_mail');
+
+  const exp = jwt.decodePayload(invitationToken).exp; // Lấy exp từ token
+
+  await invitationDBServices.createInvitation({
+    email: userToInvite.email,
+    groupId: id,
+    invitedById: inviterId, // ID của người mời
+    role,
+    token: invitationToken,
+    expiresAt: new Date(exp * 1000), // Convert Unix timestamp to Date object
+  });
+
+  sendEmailToVerify(
+    EmailType.GROUP_INVITATION,
+    config.URL_MAIL_PUBLIC,
+    invitationToken,
+    userToInvite.email,
+    `You have been invited to join a group`,
+    HtmlConverter.GroupInvitation
+  );
+
+  return successResponse(res, null, 'Invitation sent successfully');
 });
 
 /**
@@ -304,33 +291,33 @@ const removeMember = catchAsync(async (req, res, next) => {
  */
 const leaveGroup = catchAsync(async (req, res, next) => {
   const { id } = req.params;
-  
- try {
-   // Cannot leave if user is the creator
-   const group = await prisma.group.findUnique({
-     where: { id: id },
-     select: { creatorId: true },
-   });
-   
-   if (group.creatorId === req.user.id) {
-     return errorResponse(res, 'Group creator cannot leave. Transfer ownership or delete group.', 400);
-   }
-   
-   // Remove membership
-   await prisma.groupMember.delete({
-     where: {
-       userId_groupId: {
-         userId: req.user.id,
-         groupId: id,
-       },
-     },
-   });
-   
-   return successResponse(res, null, 'Left group successfully');
- } catch (error) {
-   next(error)
- }
+  const clientId = req.user.id; // Hàm này đã dùng đúng `req.user.id` từ trước
+
+  const group = await prisma.group.findUnique({
+    where: { id: id },
+    select: { creatorId: true },
+  });
+
+  if (!group) {
+    return errorResponse(res, 'Group not found', 404);
+  }
+
+  if (group.creatorId === clientId) {
+    return errorResponse(res, 'Group creator cannot leave. Transfer ownership or delete group.', 400);
+  }
+
+  await prisma.groupMember.delete({
+    where: {
+      userId_groupId: {
+        userId: clientId,
+        groupId: id,
+      },
+    },
+  });
+
+  return successResponse(res, null, 'Left group successfully');
 });
+
 
 module.exports = {
   createGroup,

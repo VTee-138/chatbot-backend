@@ -50,7 +50,8 @@ module.exports = {
   // NODE MAILER
   USER_MAIL: process.env.USER_MAIL,
   APP_PASSWORD: process.env.APP_PASSWORD,
-
+  ZALO_SECRET_KEY: process.env.ZALO_SECRET_KEY,
+  ZALO_APP_ID: process.env.ZALO_APP_ID,
   // Google AI Pencil Acc
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,

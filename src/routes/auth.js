@@ -59,7 +59,7 @@ authRouter.post(
 authRouter.post(
   "/login",
   authLimiter,
-  schemaValidate(LoginWithCaptchaSchema, "body"),
+ // schemaValidate(LoginWithCaptchaSchema, "body"),
   login
 );
 authRouter.post("/refresh", refreshToken);

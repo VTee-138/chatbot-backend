@@ -139,7 +139,6 @@ const login = catchAsync(async (req, res, next) => {
   // GET FIELD
   const { email, password, captchaToken } = req.body;
   try {
-    // Import turnstile service
     const { verifyTurnstileToken } = require('../services/turnstileService');
     
     // Verify CAPTCHA token first
@@ -152,7 +151,7 @@ const login = catchAsync(async (req, res, next) => {
     const user = await userCredentialModel.findUserByEmail(email)
     // Tài khoản sso sẽ có một email vậy nên nếu không tồn tại mật khẩu => không cho đăng nhập
     if (!user || !user.emailVerifiedAt || !user.passwordHash) {
-      return errorResponse(res, 'Email hoặc mật khẩu không hợp lệ', Constants.BAD_REQUEST);
+      return errorResponse(res, 'Email hoặc mật khẩu không hợp l', Constants.BAD_REQUEST);
     }
     // Verify password
     const isPasswordValid = await comparePassword(password, user.passwordHash);
@@ -724,11 +723,6 @@ const openSession = catchAsync ( async (req, res, next) => {
       id: user.id,
       email: user.email,
       userName: user.userName,
-      role: user.role,
-      ssoProviders,
-      needsOnboarding,
-      activeGroup,
-      groupCount: userGroups.length
     };
   
     const tokens = generateTokenPair(clientPayload);
@@ -747,7 +741,7 @@ const openSession = catchAsync ( async (req, res, next) => {
     if (activeGroup) {
       httpOnlyResponse(res, 'activeGroup', JSON.stringify(activeGroup), Constants.TIME_PICKER._7day_ms);
     }
-  
+  //  console.log("Here:" , verifyToken(tokens.accessToken, 'l8dEKkFYx6c5K0iLFQUhttpp8L6X3WPfH79ywxH1EECgC9zqckKLowKTyYja8MhD'));
     return successResponse(res, { 
       accessToken: tokens.accessToken, // Vẫn trả về trong response để frontend có thể dùng
       needsOnboarding,
