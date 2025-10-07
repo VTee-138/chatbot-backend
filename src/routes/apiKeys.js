@@ -2,13 +2,12 @@ const express = require('express');
 const {
   createApiKey,
   getUserApiKeys,
-  getOrganizationApiKeys,
+  getGroupApiKeys,
   getApiKeyById,
   updateApiKey,
   regenerateApiKey,
   deleteApiKey,
   getApiKeyUsage,
-  getGroupApiKeys,
 } = require('../controllers/apiKeyController');
 const { authenticate, requireGroupMember } = require('../middleware/auth');
 
@@ -73,7 +72,7 @@ router.get('/:apiKeyId/usage', authenticate, getApiKeyUsage);
  * @access  Private (Group Member)
  */
 router.get(
-  '/Groups/:GroupId/api-keys',
+  '/groups/:id/api-keys',
   authenticate,
   requireGroupMember(['OWNER', 'ADMIN', 'MEMBER']),
   getGroupApiKeys

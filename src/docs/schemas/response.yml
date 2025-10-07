@@ -1,0 +1,130 @@
+SuccessResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    message:
+      type: string
+      example: Success
+    data:
+      type: object
+      nullable: true
+      example: null
+
+SuccessResponseWithMessage:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    message:
+      type: string
+      example: "Đã gửi yêu cầu thành công!"
+    data:
+      type: object
+      nullable: true
+      example: null
+
+ErrorResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: false
+    message:
+      type: string
+      example: "An error occurred"
+    errors:
+      type: array
+      items:
+        type: object
+        properties:
+          field:
+            type: string
+          message:
+            type: string
+      nullable: true
+      example: [{field: "email", message: "Email is already in use"}]
+
+AccessTokenResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    message:
+      type: string
+      example: "Login successful"
+    data:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+MfaTokenResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    message:
+      type: string
+      example: "2FA required"
+    data:
+      type: object
+      properties:
+        mfaToken:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+UserProfileResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    message:
+      type: string
+      example: "Profile retrieved successfully"
+    data:
+      $ref: './user.yml#/Profile'
+
+BackupCodesResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    message:
+      type: string
+      example: "Backup codes regenerated successfully"
+    data:
+      type: object
+      properties:
+        backupCodes:
+          type: array
+          items:
+            type: string
+            example: "abcdef-12345"
+ErrorResponseWithSuggestions:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: false
+    message:
+      type: string
+      example: "Slug đã tồn tại"
+    data:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Slugs exists!"
+        valid_slugs:
+          type: array
+          items:
+            type: string
+            example: "my-awesome-team-1"

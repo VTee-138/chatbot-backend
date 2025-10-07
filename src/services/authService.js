@@ -12,6 +12,7 @@ class authService{
             }
             return { sub: payload.sub, userName: payload.name, email: payload.email}
         } catch (error) {
+            console.error(error)
             throw error
         }
     }

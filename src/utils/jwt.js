@@ -18,6 +18,10 @@ const TOKEN_CONFIG = {
     secret: config.JWT_2FA_SECRET,
     expiresIn: config.JWT_2FA_EXPIRES_IN,
   },
+  invitation_mail:{
+    secret: config.JWT_INVITATION_SECRET,
+    expiresIn: config.JWT_INVITATION_EXPIRES_IN,
+  }
 }
 
 /**
@@ -28,6 +32,7 @@ const TOKEN_CONFIG = {
  */
 const generateToken = (payload, type = 'access') => {
   const { secret, expiresIn } = TOKEN_CONFIG[type] || TOKEN_CONFIG.access
+  console.log(payload)
   return jwt.sign(payload, secret, { expiresIn })
 }
 
@@ -55,6 +60,11 @@ const decodePayload = (token) => {
   const { exp, iat, ...payload } = decoded;
   return payload;
 };
+
+const getEXP = (token) =>{
+  const payload = jwt.decode(token)
+  return payload.exp
+}
 /**
  * Generate tokens pair (access + refresh)
  * @param {Object} user - User object
@@ -72,4 +82,5 @@ module.exports = {
   verifyToken,
   decodePayload,
   generateTokenPair,
+  getEXP
 };

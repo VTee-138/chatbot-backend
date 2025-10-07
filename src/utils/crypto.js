@@ -56,13 +56,19 @@ const generateRandomString = (length = 32) => {
  */
 const createSlug = (text) => {
   return text
+    .normalize("NFD")                   // tách chữ + dấu
+    .replace(/[\u0300-\u036f]/g, "")    // xóa toàn bộ dấu
     .toLowerCase()
     .trim()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/[\s_-]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+    .replace(/[^\w\s-]/g, '')           // xóa ký tự đặc biệt
+    .replace(/[\s_-]+/g, '.')           // thay khoảng trắng bằng .
+    .replace(/^-+|-+$/g, '');           // bỏ - ở đầu/cuối
 };
 
+const generateMultipleSlugs = (slug) => {
+  const recommendSlug = slug + ' ' + crypto.randomBytes(4).toString('hex')
+  return createSlug(recommendSlug)
+}
 /**
  * Create shield key to prevent email injection, then set in Redis for a time
  * @param {Integer} length - Input Num
@@ -92,5 +98,6 @@ module.exports = {
   generateRandomString,
   createSlug,
   createShield,
-  convertToAscii
+  convertToAscii,
+  generateMultipleSlugs
 };

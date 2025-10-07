@@ -92,14 +92,11 @@ if (config.NODE_ENV === 'development') {
 
 // Custom request logger
 app.use(requestLogger);
-
-app.use(`${config.API_PREFIX}/${config.API_VERSION}`, router)
 // API Documentation with Swagger
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, swaggerOptions));
 
 // API routes
-app.use('/api', routes);
-
+app.use(`${config.API_PREFIX}/${config.API_VERSION}`, routes)
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({

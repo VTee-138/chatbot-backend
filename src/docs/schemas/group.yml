@@ -1,0 +1,150 @@
+CreateGroupRequest:
+  type: object
+  required: [name, slug, country]
+  properties:
+    name:
+      type: string
+      description: 'Tên của nhóm.'
+      example: "My Awesome Team"
+    slug:
+      type: string
+      description: 'Đường dẫn định danh duy nhất cho nhóm.'
+      example: "my-awesome-team"
+    country:
+      type: string
+      description: 'Tên quốc gia.'
+      example: "Vietnam"
+    logo:
+      type: string
+      description: 'URL của logo.'
+      example: "https://example.com/logo.png"
+    email:
+      type: string
+      format: email
+      description: 'Email liên hệ của nhóm.'
+      example: "team@example.com"
+    phone:
+      type: string
+      description: 'Số điện thoại liên hệ của nhóm.'
+      example: "0123456789"
+
+UpdateGroupRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      example: "New Group Name"
+    logoUrl:
+      type: string
+      example: "https://example.com/new-logo.png"
+
+UpdateRoleRequest:
+  type: object
+  required: [role]
+  properties:
+    role:
+      type: string
+      description: 'Vai trò mới của thành viên.'
+      enum: [ADMIN, MEMBER]
+      example: "ADMIN"
+
+Group:
+  type: object
+  properties:
+    id:
+      type: string
+      example: "clxyz12340000abcd1234efgh"
+    name:
+      type: string
+      example: "My Awesome Team"
+    slug:
+      type: string
+      example: "my-awesome-team"
+    logoUrl:
+      type: string
+      example: "https://example.com/logo.png"
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+GroupMembership:
+  allOf:
+    - $ref: '#/Group'
+    - type: object
+      properties:
+        role:
+          type: string
+          example: "OWNER"
+
+GroupMember:
+  type: object
+  properties:
+    memberId:
+      type: string
+    userId:
+      type: string
+    email:
+      type: string
+      format: email
+    name:
+      type: string
+    avatarUrl:
+      type: string
+      nullable: true
+    role:
+      type: string
+      enum: [OWNER, ADMIN, MEMBER]
+    joinedAt:
+      type: string
+      format: date-time
+
+GroupResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    message:
+      type: string
+      example: "Group created successfully"
+    data:
+      $ref: '#/Group'
+
+UserGroupsResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: object
+      properties:
+        userId:
+          type: string
+        total:
+          type: integer
+        groups:
+          type: array
+          items:
+            $ref: '#/GroupMembership'
+
+GroupMembersResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: object
+      properties:
+        total:
+          type: integer
+        members:
+          type: array
+          items:
+            $ref: '#/GroupMember'

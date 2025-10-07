@@ -1,0 +1,493 @@
+checkEmail:
+  post:
+    tags: [Auth]
+    summary: Kiểm tra email đã tồn tại hay chưa
+    description: "Kiểm tra xem email đã tồn tại và đã được xác thực trong hệ thống chưa. Nếu chưa, lưu email vào httpOnly cookie `registerEmail` cho bước đăng ký tiếp theo."
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/request.yml#/Email'
+    responses:
+      '200':
+        description: Email hợp lệ và sẵn sàng để đăng ký.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/SuccessResponse'
+      '409':
+        description: Email đã tồn tại và đã được xác thực.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/ErrorResponse'
+
+register:
+  post:
+    tags: [Auth]
+    summary: Đăng ký tài khoản mới
+    description: "Hoàn tất thông tin đăng ký tài khoản. Hệ thống sẽ đọc email từ cookie `registerEmail`, hash mật khẩu, lưu người dùng và gửi email xác thực."
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/request.yml#/Register'
+    responses:
+      '200':
+        description: Đăng ký thành công, chờ xác thực email.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/SuccessResponseWithMessage'
+      '400':
+        description: Dữ liệu không hợp lệ.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/ErrorResponse'
+      '409':
+        description: Tên người dùng đã tồn tại.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/ErrorResponse'
+
+verifyEmail:
+  post:
+    tags: [Auth]
+    summary: Xác thực email đăng ký
+    description: "Xác thực email người dùng bằng JWT được gửi từ link trong email. Nếu thành công, tài khoản sẽ được kích hoạt."
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/request.yml#/JwtToken'
+    responses:
+      '200':
+        description: Xác thực email thành công.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/SuccessResponseWithMessage'
+
+login:
+  post:
+    tags: [Auth]
+    summary: Đăng nhập bằng tài khoản và mật khẩu
+    description: "Đăng nhập cho người dùng. Nếu tài khoản bật 2FA, trả về `mfaToken`. Nếu không, trả về `accessToken` và tạo phiên đăng nhập."
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/request.yml#/Login'
+    responses:
+      '200':
+        description: Đăng nhập thành công hoặc yêu cầu xác thực 2FA.
+        content:
+          application/json:
+            examples:
+              LoginSuccess:
+                value:
+                  success: true
+                  message: "Login successful"
+                  data:
+                    accessToken: "your_new_access_token"
+              2FARequired:
+                value:
+                  success: true
+                  message: "2FA required"
+                  data:
+                    mfaToken: "your_mfa_token"
+      '400':
+        description: Sai mật khẩu hoặc tài khoản không hợp lệ.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/ErrorResponse'
+
+ssoGoogle:
+  post:
+    tags: [Auth]
+    summary: Đăng nhập / Đăng ký bằng Google
+    description: "Xác thực người dùng bằng Google. Gửi `idToken` nhận được từ Google OAuth2 client-side flow."
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/request.yml#/SSOGoogle'
+    responses:
+      '200':
+        description: Đăng nhập thành công.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/AccessTokenResponse'
+
+ssoFacebook:
+  post:
+    tags: [Auth]
+    summary: Đăng nhập / Đăng ký bằng Facebook
+    description: "Xác thực người dùng bằng Facebook. Gửi `accessToken` nhận được từ Facebook Login client-side flow."
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/request.yml#/SSOFacebook'
+    responses:
+      '200':
+        description: Đăng nhập thành công.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/AccessTokenResponse'
+
+logout:
+  post:
+    tags: [Auth]
+    summary: Đăng xuất
+    description: "Đăng xuất người dùng khỏi thiết bị hiện tại, vô hiệu hóa refresh token."
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: Đăng xuất thành công.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/SuccessResponseWithMessage'
+
+logoutAll:
+  post:
+    tags: [Auth]
+    summary: Đăng xuất khỏi tất cả thiết bị (Chưa cài đặt)
+    description: "**Lưu ý:** Chức năng này chưa được cài đặt."
+    security:
+      - BearerAuth: []
+    responses:
+      '501':
+        description: Chưa được cài đặt.
+
+refresh:
+  post:
+    tags: [Auth]
+    summary: Làm mới Access Token
+    description: "Sử dụng `refreshToken` (lưu trong httpOnly cookie) để lấy `accessToken` mới."
+    responses:
+      '200':
+        description: Làm mới token thành công.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/AccessTokenResponse'
+      '401':
+        description: Refresh token không hợp lệ hoặc đã hết hạn.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/ErrorResponse'
+
+checkSession:
+  get:
+    tags: [Auth]
+    summary: Kiểm tra phiên đăng nhập
+    description: "Kiểm tra xem phiên đăng nhập hiện tại (dựa trên cookie) có còn hợp lệ hay không."
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: Phiên đăng nhập hợp lệ.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/SuccessResponse'
+      '401':
+        description: Phiên đăng nhập không hợp lệ.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/ErrorResponse'
+
+reAuthenticate:
+  post:
+    tags: [Auth]
+    summary: Xác thực lại danh tính
+    description: "Yêu cầu người dùng xác thực lại bằng mật khẩu hoặc SSO để thực hiện các hành động nhạy cảm."
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/request.yml#/ReAuthenticate'
+    responses:
+      '200':
+        description: Xác thực lại thành công.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/SuccessResponseWithMessage'
+      '401':
+        description: Thông tin xác thực không chính xác.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/ErrorResponse'
+
+forgotPassword:
+  post:
+    tags: [Auth]
+    summary: Yêu cầu lấy lại mật khẩu
+    description: "Bắt đầu quy trình quên mật khẩu. Gửi email chứa link xác nhận đến người dùng."
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/request.yml#/Email'
+    responses:
+      '200':
+        description: Gửi yêu cầu thành công.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/SuccessResponseWithMessage'
+
+resetPassword:
+  post:
+    tags: [Auth]
+    summary: Đặt lại mật khẩu mới
+    description: "Đặt lại mật khẩu mới bằng JWT nhận được từ email."
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/request.yml#/ResetPassword'
+    responses:
+      '200':
+        description: Đặt lại mật khẩu thành công.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/SuccessResponseWithMessage'
+      '400':
+        description: Token không hợp lệ hoặc mật khẩu không khớp.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/ErrorResponse'
+
+changePassword:
+  post:
+    tags: [Auth]
+    summary: Thay đổi mật khẩu hiện tại
+    description: "Cho phép người dùng đã đăng nhập thay đổi mật khẩu của họ."
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/request.yml#/ChangePassword'
+    responses:
+      '200':
+        description: Đổi mật khẩu thành công.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/SuccessResponseWithMessage'
+      '400':
+        description: Mật khẩu cũ không đúng hoặc mật khẩu mới không khớp.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/ErrorResponse'
+
+resendEmail:
+  post:
+    tags: [Auth]
+    summary: Gửi lại email xác thực
+    description: "Gửi lại email xác thực (đăng ký hoặc quên mật khẩu) nếu email trước đó đã hết hạn."
+    parameters:
+      - name: type
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [register, forgot]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/request.yml#/JwtToken'
+    responses:
+      '200':
+        description: Đã gửi lại email thành công.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/SuccessResponseWithMessage'
+
+getProfile:
+  get:
+    tags: [User Profile]
+    summary: Lấy thông tin hồ sơ người dùng
+    description: "Lấy thông tin hồ sơ chi tiết của người dùng đang đăng nhập."
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: Lấy thông tin thành công.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/UserProfileResponse'
+
+updateProfile:
+  put:
+    tags: [User Profile]
+    summary: Cập nhật hồ sơ người dùng
+    description: "Cập nhật các thông tin cá nhân của người dùng."
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/user.yml#/Profile'
+    responses:
+      '200':
+        description: Cập nhật thành công.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/UserProfileResponse'
+
+verify2FA:
+  post:
+    tags: [Two-Factor Authentication (2FA)]
+    summary: Xác thực 2FA cho hành động nhạy cảm
+    description: "Dùng để xác thực một hành động nhạy cảm khi người dùng đã đăng nhập, sử dụng mã OTP."
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/_2fa.yml#/VerifyToken'
+    responses:
+      '200':
+        description: Xác thực thành công.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/SuccessResponse'
+      '400':
+        description: Mã không hợp lệ.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/ErrorResponse'
+
+verify2FABackup:
+  post:
+    tags: [Two-Factor Authentication (2FA)]
+    summary: Xác thực 2FA bằng mã dự phòng
+    description: "Tương tự verify, nhưng dùng mã dự phòng. Mã đã dùng sẽ bị vô hiệu hóa."
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/_2fa.yml#/VerifyToken'
+    responses:
+      '200':
+        description: Xác thực thành công.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/SuccessResponse'
+      '400':
+        description: Mã không hợp lệ.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/ErrorResponse'
+
+regenerate2FABackup:
+  post:
+    tags: [Two-Factor Authentication (2FA)]
+    summary: Tạo lại mã dự phòng 2FA
+    description: "Tạo ra một bộ mã dự phòng mới, đồng thời vô hiệu hóa tất cả các mã cũ."
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: Tạo mã mới thành công.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/BackupCodesResponse'
+
+login2FAVerify:
+  post:
+    tags: [Two-Factor Authentication (2FA)]
+    summary: Xác thực 2FA sau khi đăng nhập (OTP)
+    description: "Sử dụng sau khi đăng nhập và nhận được `mfaToken` để xác thực bằng mã OTP. Nếu thành công, trả về `accessToken`."
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/_2fa.yml#/VerifyTokenWithMfa'
+    responses:
+      '200':
+        description: Xác thực thành công, đăng nhập hoàn tất.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/AccessTokenResponse'
+      '400':
+        description: Mã OTP hoặc mfaToken không hợp lệ.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/ErrorResponse'
+
+login2FABackupVerify:
+  post:
+    tags: [Two-Factor Authentication (2FA)]
+    summary: Xác thực 2FA sau khi đăng nhập (Backup Code)
+    description: "Sử dụng sau khi đăng nhập và nhận được `mfaToken` để xác thực bằng mã dự phòng. Nếu thành công, trả về `accessToken`."
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/_2fa.yml#/VerifyTokenWithMfa'
+    responses:
+      '200':
+        description: Xác thực thành công, đăng nhập hoàn tất.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/AccessTokenResponse'
+      '400':
+        description: Mã dự phòng hoặc mfaToken không hợp lệ.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/response.yml#/ErrorResponse'

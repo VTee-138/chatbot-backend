@@ -2,7 +2,6 @@ const express = require('express');
 const {
   createGroup,
   getUserGroups,
-  getGroupById,
   updateGroup,
   deleteGroup,
   getGroupMembers,
@@ -12,77 +11,95 @@ const {
   leaveGroup,
 } = require('../controllers/groupController');
 const { authenticate, requireGroupMember } = require('../middleware/auth');
+const { getInvitations, revokeInvitation } = require('../controllers/invitationController');
 
 const groupRouter = express.Router();
 
-// Create group
-groupRouter.post('/', authenticate, createGroup);
-
-// Get user's groups
-groupRouter.get('/', authenticate, getUserGroups);
-
-// Get group by id
+// [x ]
+groupRouter.post(
+  '/', 
+  authenticate, 
+  createGroup);
+// [x]
 groupRouter.get(
-  '/:grId',
+  '/:id', 
   authenticate,
   requireGroupMember(['OWNER', 'ADMIN', 'MEMBER']),
-  getGroupById
-);
+  getUserGroups);
 
-// Get group members
+// groupRouter.get(
+//   '/:id',
+//   authenticate,
+//   requireGroupMember(['OWNER', 'ADMIN', 'MEMBER']),
+//   getGroupById
+// );
+
+// [ x ]
 groupRouter.get(
-  '/:grId/members',
+  '/:id/members',
   authenticate,
-  requireGroupMember(['OWNER', 'ADMIN', 'MEMBER', 'VIEWER']),
+  requireGroupMember(['OWNER', 'ADMIN', 'MEMBER']),
   getGroupMembers
 );
 
-// Invite member
+// [ x]
+// Update thông tin group
+groupRouter.put(
+  '/:id',
+  authenticate,
+  requireGroupMember(['OWNER', 'ADMIN']),
+  updateGroup
+);
+// [ x] => Chưa có Route này
+// groupRouter.delete(
+//   '/:id',
+//   authenticate,
+//   requireGroupMember(['OWNER']),
+//   deleteGroup
+// );
+
+// [x ]
 groupRouter.post(
-  '/:grId/members',
+  '/:id/invite',
   authenticate,
   requireGroupMember(['OWNER', 'ADMIN']),
   inviteMember
 );
-
-// Update member role
+// [x]
+groupRouter.get(
+  '/:id/invite', 
+  authenticate,
+  requireGroupMember(['OWNER', 'ADMIN']),
+  getInvitations
+)
+// [x]
+groupRouter.delete(
+  ':id/invite/:invitationId',
+  authenticate,
+  requireGroupMember(['OWNER']),
+  revokeInvitation
+)
+// [ x ]
 groupRouter.put(
-  '/:grId/members/:memberId',
+  '/:id/members/:userId',
   authenticate,
   requireGroupMember(['OWNER']),
   updateMemberRole
 );
-
-// Remove member
+// [ x ]
 groupRouter.delete(
-  '/:grId/members/:memberId',
+  '/:id/members/:userId',
   authenticate,
   requireGroupMember(['OWNER', 'ADMIN']),
   removeMember
 );
 
-// Leave group
-groupRouter.post(
-  '/:grId/leave',
-  authenticate,
-  requireGroupMember(['ADMIN', 'MEMBER', 'VIEWER']),
-  leaveGroup
-);
-
-// Update group
-groupRouter.put(
-  '/:grId',
-  authenticate,
-  requireGroupMember(['OWNER', 'ADMIN']),
-  updateGroup
-);
-
-// Delete group
-groupRouter.delete(
-  '/:grId',
-  authenticate,
-  requireGroupMember(['OWNER']),
-  deleteGroup
-);
+// [ ] Hasn't need
+// groupRouter.post(
+//   '/:id/leave',
+//   authenticate,
+//   requireGroupMember(['ADMIN', 'MEMBER']),
+//   leaveGroup
+// );
 
 module.exports = groupRouter;

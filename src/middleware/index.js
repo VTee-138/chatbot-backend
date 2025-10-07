@@ -8,13 +8,18 @@ const errorHandler = (err, req, res, next) => {
   console.error('Error:', err);
   if (err.isOperational){
     // Clear user not available
-    if ( err.message = Constants.MESSAGES._UNAUTHORIZED){
+    if ( err.message === Constants.MESSAGES._UNAUTHORIZED){
       // Clear user information
       httpOnlyRevoke(res, "refresh")
       httpOnlyRevoke(res, "clientInformation")
       return errorResponse(res, Constants.MESSAGES._UNAUTHORIZED, Constants.UNAUTHORIZED)
     }
-
+    if ( err.message.includes("Cannot destructure property")){
+      return errorResponse(res, "Check your property!", Constants.BAD_REQUEST)
+    }
+    if (err.message.includes("Invalid token signature:")){
+      return errorResponse(res,"Your signature isn't valid",Constants.BAD_REQUEST)
+    }
     // Prisma errors
     if (err.name === 'PrismaClientKnownRequestError') {
       switch (err.code) {

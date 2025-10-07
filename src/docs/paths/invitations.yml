@@ -1,0 +1,55 @@
+acceptInvitation:
+  post:
+    tags: [Invitations]
+    summary: 'Chấp nhận lời mời tham gia nhóm'
+    description: 'Người dùng chấp nhận một lời mời tham gia nhóm bằng token nhận được từ email.'
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/invitation.yml#/InvitationTokenRequest'
+    responses:
+      '200':
+        description: 'Chấp nhận lời mời thành công.'
+      '400':
+        description: 'Lời mời không còn hợp lệ hoặc đã hết hạn.'
+
+declineInvitation:
+  post:
+    tags: [Invitations]
+    summary: 'Từ chối lời mời tham gia nhóm'
+    description: 'Người dùng từ chối một lời mời tham gia nhóm bằng token nhận được từ email.'
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/invitation.yml#/InvitationTokenRequest'
+    responses:
+      '200':
+        description: 'Từ chối lời mời thành công.'
+      '400':
+        description: 'Lời mời không còn hợp lệ.'
+
+revokeInvitationById:
+  delete:
+    tags: [Invitations]
+    summary: 'Thu hồi lời mời (bằng ID)'
+    description: 'Thu hồi một lời mời đã gửi bằng ID của lời mời.'
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: 'ID của lời mời.'
+        schema:
+          type: string
+    responses:
+      '200':
+        description: 'Thu hồi lời mời thành công.'

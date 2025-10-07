@@ -197,13 +197,13 @@ const requireGroupMember = (roles = []) => {
       //   return errorResponse(res, 'Authentication required', 401);
       // }
       const clientId = cookieHelper.getClientId(req)
-      const { grId } = req.params;
+      const { id } = req.params;
       
-      if (!grId) {
+      if (!id) {
         return errorResponse(res, 'Group ID is required', 400);
       }
       
-      const membership = await groupDBServices.getMemberInformation(clientId, grId)
+      const membership = await groupDBServices.getMemberInformation(clientId, id)
       
       if (!membership) {
         return errorResponse(res, 'You are not a member of this organization', 403);

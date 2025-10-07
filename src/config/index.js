@@ -17,6 +17,9 @@ module.exports = {
   JWT_VALIDATE_EXPIRES_IN: process.env.JWT_VALIDATE_EXPIRES_IN || '40s',
   JWT_2FA_SECRET: process.env.JWT_2FA_SECRET,
   JWT_2FA_EXPIRES_IN: process.env.JWT_2FA_EXPIRES_IN,
+  JWT_INVITATION_SECRET: process.env.JWT_GROUP_INVITATION_SECRET,
+  JWT_INVITATION_EXPIRES_IN: process.env.JWT_GROUP_INVITATION_EXPIRES_IN,
+  
   // API Configuration
   API_VERSION: process.env.API_VERSION || 'v1',
   API_PREFIX: process.env.API_PREFIX || '/api',

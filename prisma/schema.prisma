@@ -44,7 +44,7 @@ model ssoAccount {
 }
 
 model ai_usage_logs {
-  id               String        @id
+  id               String        @id @default(uuid())
   modelName        String
   promptTokens     Int
   completionTokens Int
@@ -58,21 +58,22 @@ model ai_usage_logs {
 }
 
 model channels {
-  id                String          @id
+  id                String          @id @default(cuid())
   name              String
   provider          ChannelProvider
   providerChannelId String
   groupId           String
   createdAt         DateTime        @default(now())
-  updatedAt         DateTime
+  updatedAt         DateTime        @updatedAt
   groups            groups          @relation(fields: [groupId], references: [id], onDelete: Cascade)
   conversations     conversations[]
 
   @@unique([provider, providerChannelId])
+  @@index([groupId])
 }
 
 model contacts {
-  id         String      @id
+  id         String      @id @default(cuid())
   type       ContactType
   value      String
   isPrimary  Boolean     @default(false)
@@ -94,14 +95,14 @@ model conversation_read_statuses {
 }
 
 model conversations {
-  id                         String                       @id
+  id                         String                       @id @default(uuid())
   status                     ConversationStatus           @default(OPEN)
   groupId                    String
   channelId                  String
   customerId                 String
   assigneeId                 String?
   createdAt                  DateTime                     @default(now())
-  updatedAt                  DateTime
+  updatedAt                  DateTime                     @updatedAt    
   chatbotEnabled             Boolean                      @default(true)
   providerConversationId     String                       @unique
   lastMessageAt              DateTime                     @default(now())
@@ -112,6 +113,9 @@ model conversations {
   channels                   channels                     @relation(fields: [channelId], references: [id], onDelete: Cascade)
   customers                  customers                    @relation(fields: [customerId], references: [id], onDelete: Cascade)
   groups                     groups                       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  
+  @@index([groupId])
+  @@index([assigneeId])
 }
 
 model credit_purchases {
@@ -135,12 +139,12 @@ model customer_identities {
 }
 
 model customers {
-  id                  String                @id
+  id                  String                @id @default(cuid())
   fullName            String
   avatarUrl           String?
   groupId             String
   createdAt           DateTime              @default(now())
-  updatedAt           DateTime
+  updatedAt           DateTime              @updatedAt  
   contacts            contacts[]
   conversations       conversations[]
   customer_identities customer_identities[]
@@ -158,14 +162,14 @@ model email_verification_tokens {
 }
 
 model group_members {
-  id                         String                       @id
+  id                         String                       @id @default(cuid())
   role                       GroupRole                    @default(MEMBER)
   userId                     String
   groupId                    String
   createdAt                  DateTime                     @default(now())
   assignmentWeight           Int                          @default(0)
   canBeAssigned              Boolean                      @default(true)
-  updatedAt                  DateTime
+  updatedAt                  DateTime                     @updatedAt  
   conversation_read_statuses conversation_read_statuses[]
   conversations              conversations[]
   groups                     groups                       @relation(fields: [groupId], references: [id], onDelete: Cascade)
@@ -176,16 +180,21 @@ model group_members {
 }
 
 model groups {
-  id                String             @id
+  id                String             @id @default(cuid())
   name              String
-  slug              String             @unique // url-friendly name, dùng truy cập nhanh
+  slug              String             @unique
   logoUrl           String?
+  countryCode       String?            // FK tới Country.code 
   creatorId         String  
   createdAt         DateTime           @default(now())
-  updatedAt         DateTime
+  updatedAt         DateTime           @updatedAt
   autoAssignEnabled Boolean            @default(false)
   receptionMode     ReceptionMode      @default(MANUAL)
   creditBalance     Float              @default(0)
+  // Suggesions dùng cho doanh nghiệp
+  phoneContact      String
+  emailContact      String
+  // Relations
   ai_usage_logs     ai_usage_logs[]
   channels          channels[]
   conversations     conversations[]
@@ -196,29 +205,37 @@ model groups {
   invitations       invitations[]
   subscriptions     subscriptions?
   tags              tags[]
+  country           Country?           @relation(fields: [countryCode], references: [code])
+}
+model Country {
+  code   String   @id                // ví dụ "VN", "US"
+  name   String
+  // Quan hệ 1-n: 1 country có nhiều groups
+  groups groups[]
 }
 
+
 model invitations {
-  id          String           @id
+  id          String           @id @default(cuid())
   email       String
   role        GroupRole
   token       String           @unique
   status      InvitationStatus @default(PENDING)
   expiresAt   DateTime
   groupId     String
-  invitedById String
+  invitedById String           // Thông tin người gửi lời mời
   createdAt   DateTime         @default(now())
   groups      groups           @relation(fields: [groupId], references: [id], onDelete: Cascade)
   users       User             @relation(fields: [invitedById], references: [id], onDelete: Cascade)
 }
 
 model notes {
-  id            String        @id
+  id            String        @id @default(cuid())
   content       String
   customerId    String
   authorId      String
   createdAt     DateTime      @default(now())
-  updatedAt     DateTime
+  updatedAt     DateTime      @updatedAt
   group_members group_members @relation(fields: [authorId], references: [id], onDelete: Cascade)
   customers     customers     @relation(fields: [customerId], references: [id], onDelete: Cascade)
 }
@@ -252,13 +269,13 @@ model sessions {
   userAgent        String?
   ipAddress        String?
   createdAt        DateTime @default(now())
-  updatedAt        DateTime
+  updatedAt        DateTime @updatedAt
   deviceId         String   @default(cuid())
   users            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model subscriptions {
-  id                     String             @id
+  id                     String             @id @default(cuid())
   groupId                String             @unique
   planId                 String
   stripeCustomerId       String?            @unique
@@ -266,13 +283,13 @@ model subscriptions {
   stripeCurrentPeriodEnd DateTime?
   status                 SubscriptionStatus @default(ACTIVE)
   createdAt              DateTime           @default(now())
-  updatedAt              DateTime
+  updatedAt              DateTime           @updatedAt
   groups                 groups             @relation(fields: [groupId], references: [id], onDelete: Cascade)
   plans                  plans              @relation(fields: [planId], references: [id])
 }
 
 model tags {
-  id        String      @id
+  id        String      @id @default(cuid())
   name      String
   color     String?
   groupId   String

@@ -1,0 +1,21 @@
+VerifyToken:
+  type: object
+  required: [token]
+  properties:
+    token:
+      type: string
+      description: "Mã OTP 6 số hoặc mã dự phòng"
+      example: "123456"
+
+VerifyTokenWithMfa:
+  type: object
+  required: [token, mfaToken]
+  properties:
+    token:
+      type: string
+      description: "Mã OTP 6 số hoặc mã dự phòng"
+      example: "123456"
+    mfaToken:
+      type: string
+      description: "Token nhận được sau bước đăng nhập đầu tiên"
+      example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
