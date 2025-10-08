@@ -12,6 +12,7 @@ const cookieParser = require('cookie-parser');
 const { checkRedis } = require('./utils/checkConfiguration')
 const config = require('./config');
 const http = require("http");
+const pkceStore = new Map();
 const routes = require('./routes/routes');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
@@ -60,7 +61,7 @@ app.use(helmet({
   },
 }));
 
-// CORS configuration - Enhanced for production
+// CORS configuration - Enhanced for production cross-subdomain
 const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (mobile apps, curl, Postman)
@@ -68,23 +69,29 @@ const corsOptions = {
     
     const allowedOrigins = Array.isArray(config.CORS_ORIGIN) ? config.CORS_ORIGIN : [config.CORS_ORIGIN];
     
-    // Log CORS check in development
-    if (config.NODE_ENV === 'development') {
+    // PRODUCTION: ALWAYS log CORS check for debugging
+    if (config.NODE_ENV === 'production') {
       console.log('🌐 CORS Check:', {
-        origin: origin,
-        allowed: allowedOrigins,
-        match: allowedOrigins.indexOf(origin) !== -1
+        requestOrigin: origin,
+        allowedOrigins: allowedOrigins,
+        isAllowed: allowedOrigins.indexOf(origin) !== -1,
+        environment: config.NODE_ENV,
+        timestamp: new Date().toISOString()
       });
     }
     
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      console.warn('❌ CORS blocked origin:', origin);
+      console.error('❌ CORS BLOCKED:', {
+        requestOrigin: origin,
+        allowedOrigins: allowedOrigins,
+        reason: 'Origin not in allowed list'
+      });
       callback(new Error('Not allowed by CORS policy'));
     }
   },
-  credentials: true, // CRITICAL: Allow cookies
+  credentials: true, // CRITICAL: Must be true for cookies to work
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: [
@@ -173,6 +180,16 @@ const startServer = async () => {
     const ConfigValidator = require('./utils/configValidator');
     console.log('🔍 Validating configuration...');
     ConfigValidator.validate(config);
+    
+    // Log CORS configuration for debugging
+    console.log('🌐 CORS Configuration:', {
+      CORS_ORIGIN: config.CORS_ORIGIN,
+      FRONTEND_URL: config.FRONTEND_URL,
+      FRONTEND_DOMAIN: config.FRONTEND_DOMAIN,
+      COOKIE_DOMAIN: config.COOKIE_DOMAIN,
+      NODE_ENV: config.NODE_ENV
+    });
+    
     ConfigValidator.logConfig(config);
     ConfigValidator.checkServices(config);
     

@@ -553,7 +553,7 @@ const getGroupMembers = catchAsync(async (req, res) => {
  * Invite user to group via email
  */
 const inviteMember = catchAsync(async (req, res) => {
-  const { grId } = req.params;
+  const { groupId } = req.params;
   const { email, role = 'MEMBER' } = req.body;
   const inviter = req.user;
 
@@ -569,7 +569,7 @@ const inviteMember = catchAsync(async (req, res) => {
 
   // Get group information
   const group = await prisma.groups.findUnique({
-    where: { id: grId },
+    where: { id: groupId },
     include: {
       subscriptions: {
         include: { plans: true }
@@ -591,7 +591,7 @@ const inviteMember = catchAsync(async (req, res) => {
   }
 
   // Create invitation and send email
-  const invitation = await invitationService.createInvitation(grId, inviter, email, role);
+  const invitation = await invitationService.createInvitation(groupId, inviter, email, role);
 
   return successResponse(res, {
     invitation: {
@@ -610,7 +610,7 @@ const inviteMember = catchAsync(async (req, res) => {
  * Update member role
  */
 const updateMemberRole = catchAsync(async (req, res) => {
-  const { grId, memberId } = req.params;
+  const { groupId, memberId } = req.params;
   const { role } = req.body;
 
   // Validate role
@@ -620,7 +620,7 @@ const updateMemberRole = catchAsync(async (req, res) => {
 
   // Check if group exists and get creator
   const group = await prisma.groups.findUnique({
-    where: { id: grId },
+    where: { id: groupId },
     select: { creatorId: true }
   });
 
@@ -636,7 +636,7 @@ const updateMemberRole = catchAsync(async (req, res) => {
   // Update member role
   const membership = await prisma.group_members.update({
     where: {
-      userId_groupId: { userId: memberId, groupId: grId }
+      userId_groupId: { userId: memberId, groupId: groupId }
     },
     data: {
       role,
@@ -661,11 +661,11 @@ const updateMemberRole = catchAsync(async (req, res) => {
  * Remove member from group
  */
 const removeMember = catchAsync(async (req, res) => {
-  const { grId, memberId } = req.params;
+  const { groupId, memberId } = req.params;
 
   // Check if group exists and get creator
   const group = await prisma.groups.findUnique({
-    where: { id: grId },
+    where: { id: groupId },
     select: { creatorId: true }
   });
 
@@ -681,7 +681,7 @@ const removeMember = catchAsync(async (req, res) => {
   // Remove member
   await prisma.group_members.delete({
     where: {
-      userId_groupId: { userId: memberId, groupId: grId }
+      userId_groupId: { userId: memberId, groupId: groupId }
     }
   });
 
@@ -841,7 +841,7 @@ const getGroupChannels = catchAsync(async (req, res) => {
     select: {
       id: true,
       name: true,
-      platform: true,
+      provider: true,
       status: true,
       createdAt: true,
       updatedAt: true

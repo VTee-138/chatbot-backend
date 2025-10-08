@@ -1,6 +1,7 @@
 const { PrismaClient } = require('../../generated/prisma');
 const axios = require('axios');
 const crypto = require('crypto');
+const config = require('../config');
 const prisma = new PrismaClient();
 
 // Store for PKCE code verifiers (in production, use Redis)
@@ -14,13 +15,21 @@ class ZaloController {
   async initiateZaloOAuth(req, res) {
     try {
       const { groupId } = req.query;
-      const userId = req.user.userId;
+      // req.user được giả định là đã có từ middleware xác thực
+      const userId = req.user.id;
+
+      if (!groupId) {
+        return res.status(400).json({
+          success: false,
+          message: 'groupId is required',
+        });
+      }
 
       // Verify user has access to this group
       const groupMember = await prisma.group_members.findFirst({
         where: {
-          groupId,
-          userId,
+          groupId: String(groupId), // Đảm bảo kiểu dữ liệu nhất quán
+          userId: String(userId),
           role: { in: ['ADMIN', 'OWNER'] }
         }
       });
@@ -43,7 +52,7 @@ class ZaloController {
         .replace(/\//g, '_')
         .replace(/=/g, '');
 
-      // Store code verifier with state and groupId
+      // IMPROVEMENT: Store the entire context needed in the callback
       pkceStore.set(state, { codeVerifier, groupId, userId });
 
       // Set expiration (5 minutes)
@@ -61,7 +70,7 @@ class ZaloController {
       authUrl.searchParams.set('code_challenge', codeChallenge);
       authUrl.searchParams.set('code_challenge_method', 'S256');
 
-      console.log('🔗 Zalo OAuth URL generated:', authUrl.toString());
+      console.log(`🔗 Zalo OAuth URL generated for user ${userId} and group ${groupId}:`, authUrl.toString());
 
       return res.status(200).json({
         success: true,
@@ -79,15 +88,13 @@ class ZaloController {
       });
     }
   }
-
-  /**
-   * Handle Zalo OAuth callback
-   * GET /api/v1/zalo/callback
-   */
   async handleZaloCallback(req, res) {
-    try {
-      const { code, state, oa_id } = req.query;
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
 
+    try {
+      const { code, state , oaId} = req.query;
+      console.log(req.user);
+      const userId = req.user.id;
       if (!code || !state) {
         return res.status(400).json({
           success: false,
@@ -95,41 +102,35 @@ class ZaloController {
         });
       }
 
-      // Retrieve stored PKCE data
-      const pkceData = pkceStore.get(state);
-      if (!pkceData) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid or expired state parameter'
-        });
+      // FIX #1: Retrieve the whole object from the store, not just the verifier
+      const storedData = pkceStore.get(state);
+      if (!storedData) {
+        throw new Error('Invalid or expired state. Please try connecting again.');
       }
+      // Clean up the store immediately after use
+      pkceStore.delete(state);
 
-      const { codeVerifier, groupId, userId } = pkceData;
-      pkceStore.delete(state); // Use once
+      const { codeVerifier, groupId } = storedData;
 
-      // Exchange code for access token
-      const redirectUri = process.env.NODE_ENV === 'production'
-        ? process.env.ZALO_REDIRECT_URI_PROD
-        : process.env.ZALO_REDIRECT_URI_DEV;
-
+      // IMPROVEMENT #1: Use axios data object for urlencoded form
       const tokenResponse = await axios.post(
         'https://oauth.zaloapp.com/v4/oa/access_token',
-        new URLSearchParams({
+        {
           grant_type: 'authorization_code',
-          app_id: process.env.ZALO_APP_ID,
+          app_id: process.env.ZALO_APP_ID, // Use process.env for consistency
           code: code,
           code_verifier: codeVerifier,
-        }),
+          // app_secret is not needed for PKCE flow when getting access token
+        },
         {
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
-            'secret_key': process.env.ZALO_APP_SECRET
+            'secret_key': process.env.ZALO_APP_SECRET // secret_key is sent via header
           }
         }
       );
 
       const { access_token, refresh_token, expires_in } = tokenResponse.data;
-
       if (!access_token) {
         throw new Error('Failed to retrieve access token from Zalo');
       }
@@ -137,61 +138,58 @@ class ZaloController {
       // Get OA information
       const oaInfoResponse = await axios.get(
         'https://openapi.zalo.me/v2.0/oa/getoa',
-        {
-          headers: {
-            'access_token': access_token
-          }
-        }
+        { headers: { 'access_token': access_token } }
       );
-
       const oaInfo = oaInfoResponse.data.data;
-      const oaName = oaInfo.name || `Zalo OA ${oa_id}`;
+      const oaName = oaInfo.name || `Zalo OA ${oaId}`;
       const oaAvatar = oaInfo.avatar || null;
-
-      // Calculate token expiration
-      const expiresAt = new Date(Date.now() + (expires_in - 300) * 1000);
-
-      // Create channel in database
-      const channel = await prisma.channels.create({
+      const expiresAt = new Date(Date.now() + (expires_in - 300) * 1000); // 5 mins buffer 
+      await prisma.zalo_oa_tokens.upsert({
+        where: { oa_id: String(oaId) },
+        update: {
+          access_token,
+          refresh_token,
+          expires_at: expiresAt
+        },
+        create: {
+          oa_id: String(oaId),
+          access_token,
+          refresh_token,
+          expires_at: expiresAt
+        }
+      });
+      await prisma.zalo_oa_users.create({
         data: {
-          id: `zalo_oa_${oa_id}_${Date.now()}`,
-          name: oaName,
-          provider: 'ZALO',
-          providerChannelId: oa_id,
-          groupId: groupId,
-          status: 'ACTIVE',
-          createdAt: new Date(),
-          updatedAt: new Date()
+          oa_id: String(oaId),
+          user_id: String(userId)
         }
       });
 
-      console.log('✅ Zalo OA connected successfully:', {
-        channelId: channel.id,
-        oaId: oa_id,
-        oaName: oaName
-      });
 
-      // Redirect to frontend with success
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
-      const redirectUrl = new URL('/dashboard', frontendUrl);
+      console.log(`✅ Zalo OA ${oaId} successfully connected and linked to group ${groupId} by user ${userId}.`);
+
+      // Redirect back to the frontend with success details
+      const redirectUrl = new URL('/settings/channels', frontendUrl); // Or any other relevant page
       redirectUrl.searchParams.set('channel_connected', 'true');
-      redirectUrl.searchParams.set('channel_id', channel.id);
-      redirectUrl.searchParams.set('channel_name', oaName);
+      redirectUrl.searchParams.set('channel_type', 'zalo_oa');
+      redirectUrl.searchParams.set('channel_id', oaId);
+      redirectUrl.searchParams.set('channel_name', encodeURIComponent(oaName));
+      redirectUrl.searchParams.set('group_id', groupId);
 
       return res.redirect(redirectUrl.toString());
 
     } catch (error) {
       console.error('Error handling Zalo callback:', error.response?.data || error.message);
-      
-      // Redirect to frontend with error
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
-      const redirectUrl = new URL('/dashboard', frontendUrl);
+
+      const redirectUrl = new URL('/settings/channels', frontendUrl);
       redirectUrl.searchParams.set('channel_error', 'true');
-      redirectUrl.searchParams.set('error_message', encodeURIComponent(error.message));
+      const errorMessage = error.response?.data?.error_description || error.message || 'An unknown error occurred.';
+      redirectUrl.searchParams.set('error_message', encodeURIComponent(errorMessage));
 
       return res.redirect(redirectUrl.toString());
     }
   }
+
 
   /**
    * Handle Zalo webhooks
@@ -233,12 +231,12 @@ class ZaloController {
         case 'user_send_gif':
           await this.handleIncomingMessage(channel, event);
           break;
-        
+
         case 'oa_send_text':
         case 'oa_send_image':
           await this.handleOutgoingMessage(channel, event);
           break;
-        
+
         default:
           console.log('ℹ️ Unhandled event type:', event_name);
       }
@@ -400,7 +398,7 @@ class ZaloController {
 
       // Save outgoing message
       let messageContent = message.text || JSON.stringify(message);
-      
+
       await prisma.messages.create({
         data: {
           id: `msg_zalo_out_${timestamp}_${Date.now()}`,
@@ -424,6 +422,62 @@ class ZaloController {
    * Send a message via Zalo OA
    * POST /api/v1/zalo/send-message
    */
+  async refreshAccessToken(req, res) {
+    try {
+      const { oa_id } = req.body;
+      if (!oa_id) {
+        return res.status(400).json({ success: false, message: "Missing oa_id" });
+      }
+
+      // Lấy token hiện tại từ DB
+      const tokenData = await prisma.zalo_oa_tokens.findUnique({
+        where: { oa_id },
+      });
+
+      if (!tokenData) {
+        return res.status(404).json({ success: false, message: "OA not found" });
+      }
+
+      const response = await axios.post(
+        "https://oauth.zaloapp.com/v4/access_token",
+        new URLSearchParams({
+          refresh_token: tokenData.refresh_token,
+          app_id: config.ZALO_APP_ID,
+          grant_type: "refresh_token",
+        }),
+        {
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "secret_key": config.ZALO_SECRET_KEY,
+          },
+        }
+      );
+
+      const data = response.data;
+
+      // Cập nhật token mới vào database
+      const updated = await prisma.zalo_oa_tokens.update({
+        where: { oa_id },
+        data: {
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+          expires_at: new Date(Date.now() + Number(data.expires_in) * 1000),
+        },
+      });
+
+      return res.json({
+        success: true,
+        message: "Access token refreshed successfully",
+        data: updated,
+      });
+    } catch (error) {
+      console.error("Error refreshing Zalo token:", error.response?.data || error.message);
+      return res.status(500).json({
+        success: false,
+        message: error.response?.data?.message || error.message,
+      });
+    }
+  }
   async sendZaloMessage(req, res) {
     try {
       const { channelId, userId, message } = req.body;

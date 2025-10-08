@@ -67,7 +67,8 @@ module.exports = {
   
   // Mail FE Link
   URL_MAIL_PUBLIC: process.env.URL_MAIL_PUBLIC || 'http://localhost:3001',
-  
+  ZALO_SECRET_KEY: process.env.ZALO_SECRET_KEY,
+  ZALO_APP_ID: process.env.ZALO_APP_ID,
   // OAuth URLs
   BASE_URL: process.env.BASE_URL || 'http://localhost:8000',
   FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3001',

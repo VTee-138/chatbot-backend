@@ -53,7 +53,7 @@ groupRouter.post('/join-requests/:requestId/reject', authenticate, rejectJoinReq
 
 // Get group by id
 groupRouter.get(
-  '/:grId',
+  '/:groupId',
   authenticate,
   requireGroupMember(['OWNER', 'ADMIN', 'MEMBER']),
   getGroupById
@@ -77,7 +77,7 @@ groupRouter.get(
 
 // Get group members
 groupRouter.get(
-  '/:grId/members',
+  '/:groupId/members',
   authenticate,
   requireGroupMember(['OWNER', 'ADMIN', 'MEMBER', 'VIEWER']),
   getGroupMembers
@@ -85,7 +85,7 @@ groupRouter.get(
 
 // Invite member
 groupRouter.post(
-  '/:grId/members',
+  '/:groupId/members',
   authenticate,
   requireGroupMember(['OWNER', 'ADMIN']),
   inviteMember
@@ -93,7 +93,7 @@ groupRouter.post(
 
 // Update member role
 groupRouter.put(
-  '/:grId/members/:memberId',
+  '/:groupId/members/:memberId',
   authenticate,
   requireGroupMember(['OWNER']),
   updateMemberRole
@@ -101,7 +101,7 @@ groupRouter.put(
 
 // Remove member
 groupRouter.delete(
-  '/:grId/members/:memberId',
+  '/:groupId/members/:memberId',
   authenticate,
   requireGroupMember(['OWNER', 'ADMIN']),
   removeMember
@@ -109,7 +109,7 @@ groupRouter.delete(
 
 // Leave group
 groupRouter.post(
-  '/:grId/leave',
+  '/:groupId/leave',
   authenticate,
   requireGroupMember(['ADMIN', 'MEMBER', 'VIEWER']),
   leaveGroup
@@ -117,7 +117,7 @@ groupRouter.post(
 
 // Update group
 groupRouter.put(
-  '/:grId',
+  '/:groupId',
   authenticate,
   requireGroupMember(['OWNER', 'ADMIN']),
   updateGroup
@@ -125,7 +125,7 @@ groupRouter.put(
 
 // Delete group
 groupRouter.delete(
-  '/:grId',
+  '/:groupId',
   authenticate,
   requireGroupMember(['OWNER']),
   deleteGroup

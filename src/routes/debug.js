@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const cookieHelper = require('../utils/cookieHelper');
-const { successResponse } = require('../utils/response');
+const { successResponse, errorResponse } = require('../utils/response');
+const { verifyToken, decodePayload } = require('../utils/jwt');
+const jwt = require('jsonwebtoken');
 
 /**
  * @route   GET /api/v1/debug/cookies
@@ -120,6 +122,74 @@ router.post('/clear', (req, res) => {
       message: 'Failed to clear cookies',
       error: error.message
     });
+  }
+});
+
+/**
+ * @route   POST /api/v1/debug/verify-token
+ * @desc    Debug token verification - check if token is valid
+ * @access  Public (for debugging)
+ */
+router.post('/verify-token', (req, res) => {
+  try {
+    const { token } = req.body;
+    
+    if (!token) {
+      return errorResponse(res, 'Token is required in request body', 400);
+    }
+    
+    // Decode without verification to see payload
+    const decodedPayload = jwt.decode(token, { complete: true });
+    
+    if (!decodedPayload) {
+      return errorResponse(res, 'Invalid token format - cannot decode', 400);
+    }
+    
+    const results = {
+      tokenPreview: token.substring(0, 30) + '...',
+      header: decodedPayload.header,
+      payload: decodedPayload.payload,
+      verificationResults: {}
+    };
+    
+    // Try to verify with different token types
+    const tokenTypes = ['access', 'refresh', '2fa', 'validate'];
+    
+    for (const type of tokenTypes) {
+      try {
+        const verified = verifyToken(token, type);
+        results.verificationResults[type] = {
+          success: true,
+          message: `✅ Valid ${type} token`,
+          data: verified
+        };
+      } catch (error) {
+        results.verificationResults[type] = {
+          success: false,
+          error: error.name,
+          message: error.message
+        };
+      }
+    }
+    
+    // Determine which type succeeded
+    const successfulType = Object.keys(results.verificationResults).find(
+      type => results.verificationResults[type].success
+    );
+    
+    return successResponse(res, {
+      ...results,
+      conclusion: successfulType 
+        ? `Token is a valid ${successfulType.toUpperCase()} token`
+        : 'Token is INVALID for all token types',
+      recommendation: !successfulType 
+        ? 'Check JWT_SECRET configuration or token may be from different environment'
+        : `Use this token as ${successfulType} token type`
+    }, 'Token verification debug completed');
+    
+  } catch (error) {
+    console.error('Token verification debug error:', error);
+    return errorResponse(res, 'Failed to verify token: ' + error.message, 500);
   }
 });
 

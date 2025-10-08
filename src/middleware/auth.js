@@ -17,6 +17,7 @@ const authenticate = async (req, res, next) => {
   try {
     let token = null;
     let tokenSource = null;
+    let tokenType = 'access'; // Default to access token
     
     // Priority 1: Try to get token from Authorization header (JWT approach)
     const authHeader = req.headers.authorization;
@@ -29,11 +30,22 @@ const authenticate = async (req, res, next) => {
     // Priority 2: Fallback to cookie-based auth
     if (!token) {
       try {
-        const refreshToken = cookieHelper.getRefreshToken(req);
-        if (refreshToken) {
-          token = refreshToken;
-          tokenSource = 'Cookie (refreshToken)';
-          console.log('🔑 Token found in cookie');
+        // Try access token first
+        const accessToken = req.cookies?.accessToken;
+        if (accessToken) {
+          token = accessToken;
+          tokenSource = 'Cookie (accessToken)';
+          tokenType = 'access';
+          console.log('🔑 Access token found in cookie');
+        } else {
+          // Fallback to refresh token
+          const refreshToken = cookieHelper.getRefreshToken(req);
+          if (refreshToken) {
+            token = refreshToken;
+            tokenSource = 'Cookie (refreshToken)';
+            tokenType = 'refresh';
+            console.log('🔑 Refresh token found in cookie');
+          }
         }
       } catch (cookieError) {
         // Cookie not found or invalid - continue to check if header token exists
@@ -48,11 +60,34 @@ const authenticate = async (req, res, next) => {
     }
 
     try {
-      // Verify JWT token (both development and production)
-      const decoded = verifyToken(token, 'access');
+      // Try to verify as access token first
+      let decoded = null;
+      let verifiedTokenType = null;
       
-      console.log(`🔐 JWT Token verified from ${tokenSource}`);
+      try {
+        decoded = verifyToken(token, 'access');
+        verifiedTokenType = 'access';
+        console.log(`🔐 Token verified as ACCESS token from ${tokenSource}`);
+      } catch (accessError) {
+        // If access token verification fails, try refresh token
+        console.log(`⚠️ Failed to verify as access token: ${accessError.message}`);
+        
+        try {
+          decoded = verifyToken(token, 'refresh');
+          verifiedTokenType = 'refresh';
+          console.log(`🔐 Token verified as REFRESH token from ${tokenSource}`);
+        } catch (refreshError) {
+          console.error(`❌ Failed to verify as both access and refresh token`);
+          throw accessError; // Throw the original access token error
+        }
+      }
+      
+      if (!decoded) {
+        throw new Error('Token verification failed');
+      }
+      
       console.log(`📧 User: ${decoded.userName || decoded.email} (ID: ${decoded.id})`);
+      console.log(`🎫 Token type: ${verifiedTokenType}`);
       
       // Set user information from JWT payload
       req.user = {
@@ -70,14 +105,20 @@ const authenticate = async (req, res, next) => {
 
     } catch (jwtError) {
       console.error("❌ JWT verification failed:", jwtError.message);
+      console.error("🔍 Error details:", {
+        name: jwtError.name,
+        message: jwtError.message,
+        tokenSource,
+        tokenPreview: token ? token.substring(0, 20) + '...' : 'null'
+      });
       
       // Provide specific error messages
       if (jwtError.name === 'TokenExpiredError') {
         return errorResponse(res, 'Access token has expired. Please refresh your token.', 401);
       } else if (jwtError.name === 'JsonWebTokenError') {
-        return errorResponse(res, 'Invalid access token format.', 401);
+        return errorResponse(res, 'Invalid access token. Please login again.', 401);
       } else {
-        return errorResponse(res, 'Token verification failed.', 401);
+        return errorResponse(res, 'Token verification failed. Please login again.', 401);
       }
     }
   } catch (error) {
@@ -206,43 +247,61 @@ const isAccountForgotExists = async (req, res, next) => {
   next()
 }
 /**
- * Organization member middleware - check if user is member of organization
- * @param {Array} roles - Required organization roles
+ * Group member middleware - check if user is member of group
+ * @param {Array} roles - Required group roles
  */
 const requireGroupMember = (roles = []) => {
   return async (req, res, next) => {
     try {
-      // if (!req.user) {
-      //   return errorResponse(res, 'Authentication required', 401);
-      // }
-      const clientId = cookieHelper.getClientId(req)
-      const { grId } = req.params;
+      // Verify user is authenticated
+      if (!req.user || !req.user.id) {
+        return errorResponse(res, 'Authentication required', 401);
+      }
       
-      if (!grId) {
+      // Get groupId from route params
+      const { groupId } = req.params;
+      
+      if (!groupId) {
         return errorResponse(res, 'Group ID is required', 400);
       }
       
-      const membership = await groupDBServices.getMemberInformation(clientId, grId)
+      // Get user's membership in this group
+      const membership = await prisma.group_members.findUnique({
+        where: {
+          userId_groupId: {
+            userId: req.user.id,
+            groupId: groupId
+          }
+        },
+        include: {
+          groups: {
+            select: {
+              id: true,
+              name: true,
+              slug: true
+            }
+          }
+        }
+      });
       
       if (!membership) {
-        return errorResponse(res, 'You are not a member of this organization', 403);
+        return errorResponse(res, 'You are not a member of this group', 403);
       }
       
-      // if (!membership.organization.isActive) {
-      //   return errorResponse(res, 'Organization is disabled', 403);
-      // }
-      
+      // Check if user has required role
       if (roles.length && !roles.includes(membership.role)) {
-        return errorResponse(res, 'Insufficient organization permissions', 403);
+        return errorResponse(res, 'Insufficient group permissions', 403);
       }
       
+      // Attach group context to request
       req.groupId = membership.groupId;
       req.groupRole = membership.role;
+      req.groupMembership = membership;
       
       next();
     } catch (error) {
-      console.error('Organization membership error:', error);
-      return errorResponse(res, 'Organization access check failed', 500);
+      console.error('Group membership error:', error);
+      return errorResponse(res, 'Group access check failed', 500);
     }
   };
 }
