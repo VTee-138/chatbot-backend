@@ -92,7 +92,7 @@ class ZaloController {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
 
     try {
-      const { code, state , oaId} = req.query;
+      const { code, state , oa_id} = req.query;
       console.log(req.user);
       const userId = req.user.id;
       if (!code || !state) {
@@ -141,18 +141,18 @@ class ZaloController {
         { headers: { 'access_token': access_token } }
       );
       const oaInfo = oaInfoResponse.data.data;
-      const oaName = oaInfo.name || `Zalo OA ${oaId}`;
+      const oaName = oaInfo.name || `Zalo OA ${oa_id}`;
       const oaAvatar = oaInfo.avatar || null;
       const expiresAt = new Date(Date.now() + (expires_in - 300) * 1000); // 5 mins buffer 
       await prisma.zalo_oa_tokens.upsert({
-        where: { oa_id: String(oaId) },
+        where: { oa_id: String(oa_id) },
         update: {
           access_token,
           refresh_token,
           expires_at: expiresAt
         },
         create: {
-          oa_id: String(oaId),
+          oa_id: String(oa_id),
           access_token,
           refresh_token,
           expires_at: expiresAt
@@ -160,14 +160,14 @@ class ZaloController {
       });
       await prisma.zalo_oa_users.create({
         data: {
-          oa_id: String(oaId),
+          oa_id: String(oa_id),
           user_id: String(userId)
         }
       });
 
       await prisma.channels.create({
         data: {
-          id: `zalo_oa_${oaId}_${Date.now()}`,
+          id: `zalo_oa_${oa_id}_${Date.now()}`,
           name: oaName,
           provider: 'ZALO',
           providerChannelId: oa_id,
@@ -177,13 +177,13 @@ class ZaloController {
           updatedAt: new Date()
         }
       });
-      console.log(`✅ Zalo OA ${oaId} successfully connected and linked to group ${groupId} by user ${userId}.`);
+      console.log(`✅ Zalo OA ${oa_id} successfully connected and linked to group ${groupId} by user ${userId}.`);
 
       // Redirect back to the frontend with success details
       const redirectUrl = new URL('/settings/channels', frontendUrl); // Or any other relevant page
       redirectUrl.searchParams.set('channel_connected', 'true');
       redirectUrl.searchParams.set('channel_type', 'zalo_oa');
-      redirectUrl.searchParams.set('channel_id', oaId);
+      redirectUrl.searchParams.set('channel_id', oa_id);
       redirectUrl.searchParams.set('channel_name', encodeURIComponent(oaName));
       redirectUrl.searchParams.set('group_id', groupId);
 
