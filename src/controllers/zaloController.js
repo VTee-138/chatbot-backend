@@ -165,7 +165,18 @@ class ZaloController {
         }
       });
 
-
+      await prisma.channels.create({
+        data: {
+          id: `zalo_oa_${oaId}_${Date.now()}`,
+          name: oaName,
+          provider: 'ZALO',
+          providerChannelId: oa_id,
+          groupId: groupId,
+          status: 'ACTIVE',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      });
       console.log(`✅ Zalo OA ${oaId} successfully connected and linked to group ${groupId} by user ${userId}.`);
 
       // Redirect back to the frontend with success details
