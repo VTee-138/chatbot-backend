@@ -23,7 +23,7 @@
   "dependencies": {
     "@prisma/client": "^6.14.0",
     "@tsconfig/node16": "^16.1.4",
-    "axios": "^1.11.0",
+    "axios": "^1.12.2",
     "bcrypt": "^6.0.0",
     "connect-redis": "^9.0.0",
     "cookie-parser": "^1.4.7",

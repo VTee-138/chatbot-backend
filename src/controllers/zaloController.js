@@ -8,6 +8,25 @@ const prisma = new PrismaClient();
 const pkceStore = new Map();
 
 class ZaloController {
+  constructor() {
+    // Bind all methods to preserve 'this' context
+    this.initiateZaloOAuth = this.initiateZaloOAuth.bind(this);
+    this.handleZaloCallback = this.handleZaloCallback.bind(this);
+    this.handleZaloWebhook = this.handleZaloWebhook.bind(this);
+    this.handleIncomingMessage = this.handleIncomingMessage.bind(this);
+    this.handleOutgoingMessage = this.handleOutgoingMessage.bind(this);
+    this.getZaloAccessToken = this.getZaloAccessToken.bind(this);
+    this.refreshTokenByOaId = this.refreshTokenByOaId.bind(this);
+    this.refreshAccessToken = this.refreshAccessToken.bind(this);
+    this.sendZaloMessage = this.sendZaloMessage.bind(this);
+    this.getZaloUsers = this.getZaloUsers.bind(this);
+    this.getUserDetail = this.getUserDetail.bind(this);
+    this.getConversations = this.getConversations.bind(this);
+    this.getAllConversations = this.getAllConversations.bind(this);
+    this.listRecentChat = this.listRecentChat.bind(this);
+    this.sendMessage = this.sendMessage.bind(this);
+  }
+
   /**
    * Initiate Zalo OA OAuth flow with PKCE
    * GET /api/v1/zalo/connect
@@ -430,69 +449,162 @@ class ZaloController {
   }
 
   /**
-   * Send a message via Zalo OA
-   * POST /api/v1/zalo/send-message
+   * Helper: Get Zalo access token for a channel
+   * @param {string} channelId - Channel ID (full ID like "zalo_oa_359...1759...")
+   * @returns {Promise<string>} Access token
+   */
+  async getZaloAccessToken(channelId) {
+    try {
+      // 1. Get channel from database
+      const channel = await prisma.channels.findUnique({
+        where: { id: channelId }
+      });
+
+      if (!channel) {
+        throw new Error('Channel not found');
+      }
+
+      // 2. Verify it's a Zalo channel
+      if (channel.provider !== 'ZALO') {
+        throw new Error('Channel is not a Zalo channel');
+      }
+
+      // 3. Get Zalo token using providerChannelId (OA ID)
+      // ✅ FIX: Use providerChannelId, not full channel.id
+      const zaloToken = await prisma.zalo_oa_tokens.findUnique({
+        where: { oa_id: channel.providerChannelId }
+      });
+
+      if (!zaloToken) {
+        throw new Error(`Zalo OA token not found for OA ID: ${channel.providerChannelId}`);
+      }
+
+      // 4. Check if token is expired
+      const now = new Date();
+      if (now >= zaloToken.expires_at) {
+        console.log(`⚠️ Access token expired for OA ${channel.providerChannelId}, refreshing...`);
+        return await this.refreshTokenByOaId(channel.providerChannelId);
+      }
+
+      // 5. Return valid token
+      console.log(`✅ Valid access token retrieved for OA ${channel.providerChannelId}`);
+      return zaloToken.access_token;
+
+    } catch (error) {
+      console.error('❌ Error getting Zalo access token:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Helper: Refresh Zalo access token by OA ID
+   * @param {string} oaId - Zalo OA ID
+   * @returns {Promise<string>} New access token
+   */
+  async refreshTokenByOaId(oaId) {
+    try {
+      // Get current token data
+      const tokenData = await prisma.zalo_oa_tokens.findUnique({
+        where: { oa_id: oaId }
+      });
+
+      if (!tokenData) {
+        throw new Error(`Token not found for OA ID: ${oaId}`);
+      }
+
+      // Call Zalo refresh token API
+      const response = await axios.post(
+        'https://oauth.zaloapp.com/v4/oa/access_token',
+        new URLSearchParams({
+          refresh_token: tokenData.refresh_token,
+          app_id: process.env.ZALO_APP_ID,
+          grant_type: 'refresh_token'
+        }),
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'secret_key': process.env.ZALO_APP_SECRET
+          }
+        }
+      );
+
+      const { access_token, refresh_token, expires_in } = response.data;
+
+      if (!access_token) {
+        throw new Error('Failed to refresh access token');
+      }
+
+      // Update token in database
+      const expiresAt = new Date(Date.now() + (expires_in - 300) * 1000); // 5 min buffer
+      await prisma.zalo_oa_tokens.update({
+        where: { oa_id: oaId },
+        data: {
+          access_token,
+          refresh_token,
+          expires_at: expiresAt
+        }
+      });
+
+      console.log(`✅ Access token refreshed successfully for OA ${oaId}`);
+      return access_token;
+
+    } catch (error) {
+      console.error('Error refreshing Zalo token:', error.response?.data || error.message);
+      throw new Error(`Failed to refresh token: ${error.response?.data?.message || error.message}`);
+    }
+  }
+
+  /**
+   * Refresh access token manually (API endpoint)
+   * POST /api/v1/zalo/refresh-token
    */
   async refreshAccessToken(req, res) {
     try {
       const { oa_id } = req.body;
+      
       if (!oa_id) {
-        return res.status(400).json({ success: false, message: "Missing oa_id" });
+        return res.status(400).json({ 
+          success: false, 
+          message: "Missing oa_id" 
+        });
       }
 
-      // Lấy token hiện tại từ DB
-      const tokenData = await prisma.zalo_oa_tokens.findUnique({
-        where: { oa_id },
-      });
+      // Use helper method to refresh token
+      const newAccessToken = await this.refreshTokenByOaId(oa_id);
 
-      if (!tokenData) {
-        return res.status(404).json({ success: false, message: "OA not found" });
-      }
-
-      const response = await axios.post(
-        "https://oauth.zaloapp.com/v4/access_token",
-        new URLSearchParams({
-          refresh_token: tokenData.refresh_token,
-          app_id: config.ZALO_APP_ID,
-          grant_type: "refresh_token",
-        }),
-        {
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "secret_key": config.ZALO_SECRET_KEY,
-          },
-        }
-      );
-
-      const data = response.data;
-
-      // Cập nhật token mới vào database
-      const updated = await prisma.zalo_oa_tokens.update({
-        where: { oa_id },
-        data: {
-          access_token: data.access_token,
-          refresh_token: data.refresh_token,
-          expires_at: new Date(Date.now() + Number(data.expires_in) * 1000),
-        },
+      // Get updated token data
+      const updatedToken = await prisma.zalo_oa_tokens.findUnique({
+        where: { oa_id }
       });
 
       return res.json({
         success: true,
         message: "Access token refreshed successfully",
-        data: updated,
+        data: {
+          oa_id: updatedToken.oa_id,
+          access_token: newAccessToken,
+          expires_at: updatedToken.expires_at
+        }
       });
+
     } catch (error) {
-      console.error("Error refreshing Zalo token:", error.response?.data || error.message);
+      console.error("Error refreshing Zalo token:", error.message);
       return res.status(500).json({
         success: false,
-        message: error.response?.data?.message || error.message,
+        message: error.message || "Failed to refresh token"
       });
     }
   }
+
+  /**
+   * Send a message via Zalo OA
+   * POST /api/v1/zalo/send-message
+   */
   async sendZaloMessage(req, res) {
     try {
       const { channelId, userId, message } = req.body;
 
+      // Validate required fields
       if (!channelId || !userId || !message) {
         return res.status(400).json({
           success: false,
@@ -500,14 +612,14 @@ class ZaloController {
         });
       }
 
-      // Get channel and verify access
+      // Get channel and verify it exists
       const channel = await prisma.channels.findUnique({
         where: { id: channelId },
         include: {
           groups: {
             include: {
               group_members: {
-                where: { userId: req.user.userId }
+                where: { userId: req.user.id }
               }
             }
           }
@@ -521,6 +633,7 @@ class ZaloController {
         });
       }
 
+      // Verify user has access to this channel's group
       if (!channel.groups.group_members.length) {
         return res.status(403).json({
           success: false,
@@ -528,33 +641,452 @@ class ZaloController {
         });
       }
 
-      // TODO: Retrieve access token from database
-      // For now, return error indicating tokens need to be stored
-      return res.status(501).json({
-        success: false,
-        message: 'Token storage not yet implemented. Please store access_token in database first.'
+      // Get access token using helper method (with auto-refresh if needed)
+      const accessToken = await this.getZaloAccessToken(channelId);
+
+      // Send message to Zalo API
+      const response = await axios.post(
+        'https://openapi.zalo.me/v3.0/oa/message/cs',
+        {
+          recipient: {
+            user_id: userId
+          },
+          message: {
+            text: message
+          }
+        },
+        {
+          headers: {
+            'access_token': accessToken,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      console.log('✅ Message sent successfully via Zalo:', response.data);
+
+      // Save message to database
+      const customer = await prisma.customers.findFirst({
+        where: {
+          groupId: channel.groupId,
+          customer_identities: {
+            some: {
+              provider: 'ZALO',
+              providerCustomerId: userId
+            }
+          }
+        }
       });
 
-      // Future implementation:
-      // const tokenRecord = await prisma.zalo_tokens.findUnique({ where: { channelId } });
-      // const response = await axios.post(
-      //   'https://openapi.zalo.me/v2.0/oa/message',
-      //   {
-      //     recipient: { user_id: userId },
-      //     message: { text: message }
-      //   },
-      //   {
-      //     headers: { 'access_token': tokenRecord.accessToken }
-      //   }
-      // );
-      // return res.json({ success: true, data: response.data });
+      if (customer) {
+        const conversation = await prisma.conversations.findFirst({
+          where: {
+            channelId: channel.id,
+            customerId: customer.id
+          },
+          orderBy: { lastMessageAt: 'desc' }
+        });
+
+        if (conversation) {
+          await prisma.messages.create({
+            data: {
+              id: `msg_zalo_out_${Date.now()}`,
+              conversationId: conversation.id,
+              content: message,
+              messageType: 'TEXT',
+              direction: 'OUTGOING',
+              createdAt: new Date(),
+              updatedAt: new Date()
+            }
+          });
+
+          // Update conversation last message time
+          await prisma.conversations.update({
+            where: { id: conversation.id },
+            data: { lastMessageAt: new Date() }
+          });
+        }
+      }
+
+      return res.json({
+        success: true,
+        message: 'Message sent successfully',
+        data: response.data
+      });
 
     } catch (error) {
-      console.error('Error sending Zalo message:', error);
+      console.error('Error sending Zalo message:', error.response?.data || error.message);
       return res.status(500).json({
         success: false,
         message: 'Failed to send message',
-        error: error.message
+        error: error.response?.data || error.message
+      });
+    }
+  }
+
+  /**
+   * Get list of users following the OA
+   * POST /api/v1/zalo/oa/get-users
+   */
+  async getZaloUsers(req, res) {
+    try {
+      const { 
+        channelId,
+        offset = 0,
+        count = 15,
+        last_interaction_period = 'TODAY',
+        is_follower = true
+      } = req.body;
+
+      if (!channelId) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Missing channelId' 
+        });
+      }
+
+      console.log(`👥 Getting users for channel: ${channelId}`);
+
+      // Get access token (with auto-refresh)
+      const accessToken = await this.getZaloAccessToken(channelId);
+
+      // Call Zalo API
+      const data = {
+        offset,
+        count,
+        last_interaction_period,
+        is_follower
+      };
+
+      const response = await axios.get('https://openapi.zalo.me/v3.0/oa/user/getlist', {
+        headers: { 'access_token': accessToken },
+        params: { data: JSON.stringify(data) }
+      });
+
+      console.log('✅ Zalo API response:', response.data);
+
+      // ✅ FIX: Return structured data
+      return res.json({
+        success: true,
+        data: response.data.data?.users || [],  // ← Extract users array
+        total: response.data.data?.total || 0,
+        offset,
+        count
+      });
+
+    } catch (error) {
+      console.error('❌ Error getting Zalo users:', error.response?.data || error.message);
+      return res.status(500).json({
+        success: false,
+        error: error.response?.data || error.message
+      });
+    }
+  }
+
+  /**
+   * Get user detail
+   * POST /api/v1/zalo/oa/user-detail
+   */
+  async getUserDetail(req, res) {
+    try {
+      const { channelId, user_id } = req.body;
+
+      if (!channelId || !user_id) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Missing channelId or user_id' 
+        });
+      }
+
+      console.log(`👤 Getting user detail: ${user_id} for channel: ${channelId}`);
+
+      // Get access token (with auto-refresh)
+      const accessToken = await this.getZaloAccessToken(channelId);
+
+      // Call Zalo API
+      const data = { user_id };
+
+      const response = await axios.get('https://openapi.zalo.me/v3.0/oa/user/detail', {
+        headers: { 'access_token': accessToken },
+        params: { data: JSON.stringify(data) }
+      });
+
+      console.log('✅ Zalo API response:', response.data);
+
+      // ✅ FIX: Return user data directly
+      return res.json({
+        success: true,
+        data: response.data.data || {}  // ← Extract user object
+      });
+
+    } catch (error) {
+      console.error('❌ Error getting user detail:', error.response?.data || error.message);
+      return res.status(500).json({
+        success: false,
+        error: error.response?.data || error.message
+      });
+    }
+  }
+
+  /**
+   * Get conversation history
+   * POST /api/v1/zalo/oa/get-conversations
+   */
+  async getConversations(req, res) {
+    try {
+      const { 
+        channelId, 
+        user_id, 
+        offset = 0, 
+        count = 5
+      } = req.body;
+
+      if (!channelId || !user_id) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Missing channelId or user_id' 
+        });
+      }
+
+      console.log(`💬 Getting conversation history for user: ${user_id}, channel: ${channelId}`);
+
+      // Get access token
+      const accessToken = await this.getZaloAccessToken(channelId);
+
+      // Call Zalo API
+      const response = await axios.get('https://openapi.zalo.me/v2.0/oa/conversation', {
+        headers: { 'access_token': accessToken },
+        params: {
+          data: JSON.stringify({ 
+            offset, 
+            count, 
+            user_id 
+          })
+        }
+      });
+
+      console.log('✅ Zalo API response:', response.data);
+
+      // ✅ FIX: Return conversation data directly
+      return res.json({
+        success: true,
+        data: response.data.data || [],  // ← Extract conversation array
+        offset,
+        count
+      });
+
+    } catch (error) {
+      console.error('❌ Error getting conversations:', error.response?.data || error.message);
+      return res.status(500).json({
+        success: false,
+        error: error.response?.data || error.message
+      });
+    }
+  }
+
+  /**
+   * Get ALL conversation history with a user (with auto-pagination)
+   * POST /api/v1/zalo/oa/get-all-conversations
+   * 
+   * This method fetches the complete conversation history by automatically 
+   * paginating through all available messages using count=10 (Zalo's max).
+   * 
+   * Use this when a user first clicks on a conversation to load full context.
+   */
+  async getAllConversations(req, res) {
+    try {
+      const { channelId, user_id, forceRefresh = false } = req.body;
+
+      if (!channelId || !user_id) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Missing channelId or user_id' 
+        });
+      }
+
+      console.log(`📚 Fetching ALL conversations for user: ${user_id}, channel: ${channelId}`);
+
+      // Get access token
+      const accessToken = await this.getZaloAccessToken(channelId);
+
+      const allMessages = [];
+      let offset = 0;
+      const count = 10; // Max allowed by Zalo API
+      let hasMore = true;
+      let pageNumber = 1;
+
+      // Loop until no more messages
+      while (hasMore) {
+        console.log(`📄 Fetching page ${pageNumber}: offset=${offset}, count=${count}`);
+
+        try {
+          const response = await axios.get('https://openapi.zalo.me/v2.0/oa/conversation', {
+            headers: { 'access_token': accessToken },
+            params: {
+              data: JSON.stringify({ offset, count, user_id })
+            }
+          });
+
+          const messages = response.data?.data || [];
+          
+          console.log(`✅ Page ${pageNumber}: Received ${messages.length} messages`);
+
+          if (messages.length === 0) {
+            // No more messages
+            console.log(`🏁 No more messages found. Stopping pagination.`);
+            hasMore = false;
+            break;
+          }
+
+          // Add to collection
+          allMessages.push(...messages);
+
+          // Check if this is the last page
+          if (messages.length < count) {
+            // Less than 10 means this is the last batch
+            console.log(`🏁 Last page reached (${messages.length} < ${count})`);
+            hasMore = false;
+          } else {
+            // Move to next page
+            offset += count;
+            pageNumber++;
+          }
+
+          // Safety: prevent infinite loop (max 100 pages = 1000 messages)
+          if (offset >= 1000) {
+            console.warn('⚠️ Reached safety limit of 1000 messages');
+            hasMore = false;
+          }
+
+          // Small delay to avoid rate limiting (50ms between requests)
+          if (hasMore) {
+            await new Promise(resolve => setTimeout(resolve, 50));
+          }
+
+        } catch (error) {
+          console.error(`❌ Error fetching page ${pageNumber} at offset ${offset}:`, error.response?.data || error.message);
+          hasMore = false;
+        }
+      }
+
+      console.log(`✅ Total messages fetched: ${allMessages.length} (${pageNumber} pages)`);
+
+      return res.json({
+        success: true,
+        data: allMessages,
+        total: allMessages.length,
+        pages: pageNumber,
+        user_id
+      });
+
+    } catch (error) {
+      console.error('❌ Error getting all conversations:', error.response?.data || error.message);
+      return res.status(500).json({
+        success: false,
+        error: error.response?.data || error.message
+      });
+    }
+  }
+
+  /**
+   * Get recent chat list
+   * POST /api/v1/zalo/oa/list-recent-chat
+   */
+  async listRecentChat(req, res) {
+    try {
+      const { 
+        channelId, 
+        offset = 0, 
+        count = 5 
+      } = req.body;
+
+      if (!channelId) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Missing channelId' 
+        });
+      }
+
+      console.log(`📋 Getting recent chats for channel: ${channelId}`);
+
+      // Get access token
+      const accessToken = await this.getZaloAccessToken(channelId);
+
+      // Call Zalo API
+      const response = await axios.get('https://openapi.zalo.me/v2.0/oa/listrecentchat', {
+        headers: { 'access_token': accessToken },
+        params: {
+          data: JSON.stringify({ offset, count })
+        }
+      });
+
+      console.log('✅ Zalo API response:', response.data);
+
+      // ✅ FIX: Return only the conversations array, not the whole wrapper
+      return res.json({
+        success: true,
+        data: response.data.data || [],  // ← Extract conversations array
+        total: response.data.data?.length || 0,
+        offset,
+        count
+      });
+
+    } catch (error) {
+      console.error('❌ Error listing recent chats:', error.response?.data || error.message);
+      return res.status(500).json({
+        success: false,
+        error: error.response?.data || error.message
+      });
+    }
+  }
+
+  /**
+   * Send message to user via Zalo OA
+   * POST /api/v1/zalo/oa/send-message
+   */
+  async sendMessage(req, res) {
+    try {
+      const { channelId, user_id, text } = req.body;
+
+      if (!channelId || !user_id || !text) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Missing channelId, user_id or text' 
+        });
+      }
+
+      console.log(`📤 Sending message to user: ${user_id} via channel: ${channelId}`);
+
+      // Get access token
+      const accessToken = await this.getZaloAccessToken(channelId);
+
+      // Call Zalo API
+      const payload = {
+        recipient: { user_id },
+        message: { text }
+      };
+
+      const response = await axios.post('https://openapi.zalo.me/v3.0/oa/message/cs', payload, {
+        headers: {
+          'Content-Type': 'application/json',
+          'access_token': accessToken
+        }
+      });
+
+      console.log('✅ Message sent via Zalo:', response.data);
+
+      // ✅ FIX: Return send result directly
+      return res.json({
+        success: true,
+        data: response.data.data || {},  // ← Extract result object
+        messageId: response.data.data?.message_id || null
+      });
+
+    } catch (error) {
+      console.error('❌ Error sending message:', error.response?.data || error.message);
+      return res.status(500).json({
+        success: false,
+        error: error.response?.data || error.message
       });
     }
   }

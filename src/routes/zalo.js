@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const zaloController = require('../controllers/zaloController');
 const { authenticate } = require('../middleware/auth');
-const { auth } = require('google-auth-library');
 
 /**
  * @route   GET /api/v1/zalo/connect
@@ -21,272 +20,72 @@ router.get('/connect', authenticate, zaloController.initiateZaloOAuth);
  * @query   oa_id - Zalo Official Account ID
  */
 router.get('/callback', authenticate, zaloController.handleZaloCallback);
-// ACCESS_TOKEN đây là ACCESS_TOKEN CỦA OA
+
 /**
- * Output demo
- *  "data": {
-    "total": 1,
-    "count": 10,
-    "offset": 0,
-    "users": [
-      {
-        "user_id": "3103741396296991610"
-      }
-    ]
-  },
-  "error": 0,
-  "message": "Success"
+ * @route   POST /api/v1/zalo/oa/get-users
+ * @desc    Get list of users following the OA
+ * @access  Private
+ * @body    channelId - Channel ID (required)
+ * @body    offset - Pagination offset (default: 0)
+ * @body    count - Number of users (default: 15, max: 50)
+ * @body    last_interaction_period - Filter period (TODAY, 7_DAYS, 30_DAYS, 60_DAYS)
+ * @body    is_follower - Filter followers (true/false)
+ */
+router.post('/oa/get-users', authenticate, zaloController.getZaloUsers);
+
+/**
+ * @route   POST /api/v1/zalo/oa/get-user-detail
+ * @desc    Get detailed information about a user
+ * @access  Private
+ * @body    channelId - Channel ID (required)
+ * @body    user_id - Zalo user ID (required)
+ */
+router.post('/oa/get-user-detail', authenticate, zaloController.getUserDetail);
+
+/**
+ * @route   POST /api/v1/zalo/oa/get-conversations
+ * @desc    Get conversation history with a user (paginated)
+ * @access  Private
+ * @body    channelId - Channel ID (required)
+ * @body    user_id - Zalo user ID (required)
+ * @body    offset - Pagination offset (default: 0)
+ * @body    count - Number of messages (default: 5, max: 10)
+ */
+router.post('/oa/get-conversations', authenticate, zaloController.getConversations);
+
+/**
+ * @route   POST /api/v1/zalo/oa/get-all-conversations
+ * @desc    Get ALL conversation history with a user (auto-pagination)
+ * @access  Private
+ * @body    channelId - Channel ID (required)
+ * @body    user_id - Zalo user ID (required)
+ * @body    forceRefresh - Force refresh cache (optional, default: false)
  * 
+ * Use this endpoint when user first clicks on a conversation to load complete history.
+ * The API automatically fetches all messages by paginating through Zalo API.
  */
-// API NÀY DÙNG ĐỂ GET NHỮNG NGƯỜI QUAN TÂM ĐẾN OA
-router.post('/oa/get-users', async (req, res) => {
-  try {
-    const {
-      access_token,
-      offset = 0,
-      count = 15,
-      last_interaction_period = 'TODAY',
-      is_follower = true,
-      tag_name
-    } = req.body;
-
-    if(!access_token) {
-      return res.status(400).json({ success: false, message: 'Missing access_token' });
-    }
-    const data = {
-      offset,
-      count,
-      last_interaction_period,
-      is_follower
-    };
-    if(tag_name) {
-      data.tag_name = tag_name;
-    }
-    const response = await axios.get('https://openapi.zalo.me/v3.0/oa/user/getlist', {
-      headers: {
-        'access_token': access_token
-      },
-      params: {
-        data: JSON.stringify(data) 
-      }
-    });
-
-    return res.json(response.data);
-
-  } catch (error) {
-    console.error(error.response?.data || error.message);
-    return res.status(500).json({
-      success: false,
-      error: error.response?.data || error.message
-    });
-  }
-});
+router.post('/oa/get-all-conversations', authenticate, zaloController.getAllConversations);
 
 /**
- * Output demo
- * User detail: {
-  "data": {
-    "user_id": "3103741396296991610",
-    "user_id_by_app": "45342013118720098",
-    "user_external_id": "",
-    "display_name": "Lê Quốc Anh",
-    "user_alias": "Lê Quốc Anh",
-    "is_sensitive": false,
-    "user_last_interaction_date": "04/10/2025",
-    "user_is_follower": true,
-    "avatar": "https://s120-ava-talk.zadn.vn/4/5/a/d/0/120/a7ec0238f7dc97d0d65262b158bcc731.jpg",
-    "avatars": {
-      "120": "https://s120-ava-talk.zadn.vn/4/5/a/d/0/120/a7ec0238f7dc97d0d65262b158bcc731.jpg",
-      "240": "https://s240-ava-talk.zadn.vn/4/5/a/d/0/240/a7ec0238f7dc97d0d65262b158bcc731.jpg"
-    },
-
-
-    "dynamic_param": "",
-    "tags_and_notes_info": {
-      "notes": [],
-      "tag_names": []
-    },
-    "shared_info": {
-      "address": "",
-      "city": "",
-      "district": "",
-      "phone": 0,
-      "name": "",
-      "user_dob": ""
-    }
-  },
-  "error": 0,
-  "message": "Success"
-}
+ * @route   POST /api/v1/zalo/oa/list-recent-chat
+ * @desc    Get list of recent conversations
+ * @access  Private
+ * @body    channelId - Channel ID (required)
+ * @body    offset - Pagination offset (default: 0)
+ * @body    count - Number of conversations (default: 5)
  */
-// API NÀY LẤY THÔNG TIN CỦA NGƯỜI GỬI
-router.post('/oa/get-user-detail', async (req, res) => {
-  try {
-    const { access_token, user_id } = req.body;
-    if(!access_token) 
-    {
-      return res.status(400).json({ success: false, message: 'Missing access_token' });
-    }
-    if(!user_id) {
-      return res.status(400).json({ success: false, message: 'Missing user_id' });
-    }
-    const data = { user_id };
-    const response = await axios.get('https://openapi.zalo.me/v3.0/oa/user/detail', {
-      headers: {
-        'access_token': access_token
-      },
-      params: {
-        data: JSON.stringify(data)
-      }
-    });
+router.post('/oa/list-recent-chat', authenticate, zaloController.listRecentChat);
 
-    return res.json(response.data);
-
-  } catch(error) {
-    console.error(error.response?.data || error.message);
-    return res.status(500).json({
-      success: false,
-      error: error.response?.data || error.message
-    });
-  }
-});
-
-//API LẤY TIN NHẮN CUỘC HỘI THOẠI, kiểu như mình sẽ lướt lên thì load tin nhắn cũ BLA BLA,...
 /**
- * output mẫu
- * {
-    "data": [
-        {
-            "src": 1,
-            "time": 1759512710365,
-            "sent_time": "00:31:50 04/10/2025",
-            "from_id": "3103741396296991610",
-            "from_display_name": "Lê Quốc Anh",
-            "from_avatar": "https://s240-ava-talk.zadn.vn/4/5/a/d/0/240/a7ec0238f7dc97d0d65262b158bcc731.jpg",
-            "to_id": "3592353763697768582",
-            "to_display_name": "10 Education",
-            "to_avatar": "https://s240-ava-talk.zadn.vn/6/2/f/0/1/240/df78a3f7d78654d52e33eb0d93a9bb45.jpg",
-            "message_id": "ccc5500cdb7842201b6f",
-            "type": "text",
-            "message": "a"
-        }
-    ],
-    "error": 0,
-    "message": "Success"
-}
+ * @route   POST /api/v1/zalo/oa/send-message
+ * @desc    Send a message to a user via Zalo OA
+ * @access  Private
+ * @body    channelId - Channel ID (required)
+ * @body    user_id - Zalo user ID (required)
+ * @body    text - Message text (required)
  */
+router.post('/oa/send-message', authenticate, zaloController.sendMessage);
 
-router.post('/oa/get-conversations', async (req, res) => {
-  try {
-    const { access_token, user_id, offset = 0, count = 5 } = req.body;
-
-    if (!access_token) {
-      return res.status(400).json({ success: false, message: 'Missing access_token' });
-    }
-    if (!user_id) {
-      return res.status(400).json({ success: false, message: 'Missing user_id' });
-    }
-
-    const data = { user_id, offset, count };
-
-    const response = await axios.get('https://openapi.zalo.me/v2.0/oa/conversation', {
-      headers: { access_token },
-      params: { data: JSON.stringify(data) }
-    });
-
-    return res.json(response.data);
-
-  } catch (error) {
-    console.error(error.response?.data || error.message);
-    return res.status(500).json({
-      success: false,
-      error: error.response?.data || error.message
-    });
-  }
-});
-
-// Route để lấy danh sách recent chat OA
-/**
- * output mẫu  "data": [
-    {
-      "src": 1,
-      "time": 1759512710557,
-      "sent_time": "00:31:50 04/10/2025",
-      "from_id": "3103741396296991610",
-      "from_display_name": "Lê Quốc Anh",
-      "from_avatar": "https://s240-ava-talk.zadn.vn/4/5/a/d/0/240/a7ec0238f7dc97d0d65262b158bcc731.jpg",
-      "to_id": "3592353763697768582",
-      "to_display_name": "10 Education",
-      "to_avatar": "https://s240-ava-talk.zadn.vn/6/2/f/0/1/240/df78a3f7d78654d52e33eb0d93a9bb45.jpg",
-      "message_id": "92a905608e14174c4e03",
-      "type": "text",
-      "message": "a"
-    }
-  ],
-  "error": 0,
-  "message": "Success"
-}
- * 
- */
-
-router.post('/oa/list-recent-chat', async (req, res) => {
-  try {
-    const { access_token, offset = 0, count = 5 } = req.body;
-
-    if (!access_token) {
-      return res.status(400).json({ success: false, message: 'Missing access_token' });
-    }
-
-    const data = { offset, count };
-
-    const response = await axios.get('https://openapi.zalo.me/v2.0/oa/listrecentchat', {
-      headers: { access_token },
-      params: { data: JSON.stringify(data) }
-    });
-
-    return res.json(response.data);
-
-  } catch (error) {
-    console.error(error.response?.data || error.message);
-    return res.status(500).json({
-      success: false,
-      error: error.response?.data || error.message
-    });
-  }
-});
-/**
- * API GỬI TIN NHẮN ĐẾN USER_ID
- */
-router.post('/oa/send-message', async (req, res) => {
-  try {
-    const { access_token, user_id, text } = req.body;
-
-    if (!access_token || !user_id || !text) {
-      return res.status(400).json({ success: false, message: 'Missing access_token, user_id or text' });
-    }
-
-    const payload = {
-      recipient: { user_id },
-      message: { text }
-    };
-
-    const response = await axios.post('https://openapi.zalo.me/v3.0/oa/message/cs', payload, {
-      headers: {
-        'Content-Type': 'application/json',
-        'access_token': access_token
-      }
-    });
-
-    return res.json(response.data);
-
-  } catch (error) {
-    console.error(error.response?.data || error.message);
-    return res.status(500).json({
-      success: false,
-      error: error.response?.data || error.message
-    });
-  }
-});
 /**
  * @route   POST /api/v1/zalo/webhook
  * @desc    Handle Zalo webhook events
@@ -295,12 +94,20 @@ router.post('/oa/send-message', async (req, res) => {
 router.post('/webhook', zaloController.handleZaloWebhook);
 
 /**
- * @route   POST /api/v1/zalo/send-message
- * @desc    Send a message via Zalo OA
+ * @route   POST /api/v1/zalo/refresh-token
+ * @desc    Manually refresh access token for an OA
  * @access  Private
- * @body    channelId - The channel ID
- * @body    userId - Zalo user ID
- * @body    message - Message text
+ * @body    oa_id - Zalo OA ID (required)
+ */
+router.post('/refresh-token', authenticate, zaloController.refreshAccessToken);
+
+/**
+ * @route   POST /api/v1/zalo/send-message (legacy endpoint for compatibility)
+ * @desc    Send a message via Zalo OA (uses channelId and userId)
+ * @access  Private
+ * @body    channelId - Channel ID (required)
+ * @body    userId - Zalo user ID (required)
+ * @body    message - Message text (required)
  */
 router.post('/send-message', authenticate, zaloController.sendZaloMessage);
 
