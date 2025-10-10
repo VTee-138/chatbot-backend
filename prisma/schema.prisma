@@ -301,18 +301,46 @@ model Country {
 }
 
 model messages {
-  id             String        @id
-  conversationId String
-  senderId       String?
-  content        String
-  messageType    MessageType   @default(TEXT)
-  direction      Direction     @default(INCOMING)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime
-  conversations  conversations @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  id                    String                @id
+  conversationId        String
+  senderId              String?
+  senderType            SenderType            @default(CUSTOMER)
+  content               String                @db.Text
+  messageType           MessageType           @default(TEXT)
+  direction             Direction             @default(INCOMING)
+  
+  // Status tracking
+  status                MessageStatus         @default(SENT)
+  deliveredAt           DateTime?
+  readAt                DateTime?
+  
+  // Provider-specific data
+  providerMessageId     String?               @unique
+  providerMetadata      Json?
+  
+  // Reply/Quote support
+  replyToMessageId      String?
+  replyToMessage        messages?             @relation("MessageReplies", fields: [replyToMessageId], references: [id], onDelete: SetNull)
+  replies               messages[]            @relation("MessageReplies")
+  
+  // Error handling
+  errorCode             String?
+  errorMessage          String?
+  retryCount            Int                   @default(0)
+  
+  // Timestamps
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  
+  // Relations
+  conversations         conversations         @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message_attachments   message_attachments[]
 
   @@index([conversationId])
   @@index([createdAt])
+  @@index([providerMessageId])
+  @@index([senderId])
+  @@index([conversationId, createdAt])
 }
 
 model zalo_oa_tokens {
@@ -328,6 +356,31 @@ model zalo_oa_users {
   oa_id          String         @db.VarChar(255)
   user_id        String
   zalo_oa_tokens zalo_oa_tokens @relation(fields: [oa_id], references: [oa_id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model message_attachments {
+  id               String         @id
+  messageId        String
+  attachmentType   AttachmentType
+  fileUrl          String
+  fileName         String?
+  fileSize         Int?
+  mimeType         String?
+  
+  thumbnailUrl     String?
+  width            Int?
+  height           Int?
+  duration         Int?
+  
+  providerFileId   String?
+  providerMetadata Json?
+  
+  createdAt        DateTime       @default(now())
+  
+  messages         messages       @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([attachmentType])
 }
 
 enum Role {
@@ -403,4 +456,29 @@ enum MessageType {
 enum Direction {
   INCOMING
   OUTGOING
+}
+
+enum SenderType {
+  CUSTOMER
+  AGENT
+  SYSTEM
+  BOT
+}
+
+enum MessageStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum AttachmentType {
+  IMAGE
+  VIDEO
+  AUDIO
+  FILE
+  STICKER
+  LOCATION
+  CONTACT
 }

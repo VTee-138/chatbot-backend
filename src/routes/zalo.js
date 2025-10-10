@@ -94,6 +94,18 @@ router.post('/oa/send-message', authenticate, zaloController.sendMessage);
 router.post('/webhook', zaloController.handleZaloWebhook);
 
 /**
+ * @route   POST /api/v1/zalo/webhook-test
+ * @desc    Test webhook with sample payload
+ * @access  Public (for testing)
+ */
+router.post('/webhook-test', (req, res) => {
+  console.log('🧪 TEST WEBHOOK - Full payload:');
+  console.log(JSON.stringify(req.body, null, 2));
+  console.log('Headers:', req.headers);
+  res.status(200).send('OK - Check console logs');
+});
+
+/**
  * @route   POST /api/v1/zalo/refresh-token
  * @desc    Manually refresh access token for an OA
  * @access  Private

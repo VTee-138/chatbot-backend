@@ -206,32 +206,16 @@ await prisma.$connect();
     
     checkRedis();
     checkNodeMailer();
+    
+    // Create HTTP server
     const server = http.createServer(app);
-    const io = new Server(server, {
-      cors: {
-        origin: "*",
-        methods: ["GET", "POST"],
-      },
-    });
-    io.on("connection", (socket) => {
-      console.log("Client connected:", socket.id);
-      socket.on("join_room", ({ user_id }) => {
-        if (!user_id) return;
-        socket.join(user_id);
-        console.log(`Socket ${socket.id} joined room ${user_id}`);
-      });
-      socket.on("send_message", ({ user_id, message }) => {
-        if (!user_id || !message) {
-          socket.emit("error", { msg: "Thiếu user_id hoặc message" });
-          return;
-        }
-        console.log(`Tin nhắn từ ${user_id}: ${message}`);
-        io.to(user_id).emit("received", { msg: "Đã nhận", user_id, message });
-      });
-      socket.on("disconnect", () => {
-        console.log("Client disconnected:", socket.id);
-      });
-    });
+    
+    // Initialize Socket.IO with our config
+    const { initSocket } = require('./config/socket');
+    const io = initSocket(server);
+    
+    console.log('✅ Socket.IO initialized');
+    
     server.listen(config.PORT, () => {
       console.log(`🚀 Server running on port ${config.PORT}`);
       console.log(`📍 Environment: ${config.NODE_ENV}`);
