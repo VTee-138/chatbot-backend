@@ -749,6 +749,7 @@ const openSession = catchAsync ( async (req, res, next) => {
     }
   
     return successResponse(res, { 
+      userId : user.id,
       accessToken: tokens.accessToken, // Vẫn trả về trong response để frontend có thể dùng
       needsOnboarding,
       activeGroup,

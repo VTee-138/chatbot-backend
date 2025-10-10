@@ -750,7 +750,7 @@ class ZaloController {
 
         // Emit to room based on userId (not conversation.id) for frontend compatibility
         console.log('📡 Emitting outgoing message (NO DB) to userId:', userId);
-        emitNewMessage(userId, socketMessage);
+        //emitNewMessage(userId, socketMessage);
         console.log('✅ Outgoing message socket event emitted successfully (real-time only)');
 
       } catch (socketError) {

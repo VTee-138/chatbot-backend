@@ -78,7 +78,7 @@ function initSocket(httpServer) {
       }
 
       // Verify JWT token
-      const decoded = jwt.verify(token, config.jwtSecret);
+      const decoded = jwt.verify(token, config.JWT_SECRET);
       socket.userId = decoded.userId;
       socket.userEmail = decoded.email;
       
