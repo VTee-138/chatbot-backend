@@ -25,6 +25,8 @@ class ZaloController {
     this.getAllConversations = this.getAllConversations.bind(this);
     this.listRecentChat = this.listRecentChat.bind(this);
     this.sendMessage = this.sendMessage.bind(this);
+    this.sendZaloImage = this.sendZaloImage.bind(this);
+    this.sendZaloFile = this.sendZaloFile.bind(this);
   }
 
   /**
@@ -1523,6 +1525,318 @@ class ZaloController {
    */
   async getUsers() {
     return "";
+  }
+
+  /**
+   * Send image via Zalo OA
+   * POST /api/v1/zalo/oa/send-image
+   * 
+   * Sends an image to a user using Zalo's CS Message API.
+   * The image must be publicly accessible via HTTPS URL.
+   * 
+   * @body channelId - Channel ID (required)
+   * @body user_id - Zalo user ID (required) 
+   * @body imageUrl - Publicly accessible HTTPS image URL (required)
+   * @body text - Optional message text to accompany the image
+   */
+  async sendZaloImage(req, res) {
+    try {
+      const { channelId, user_id, imageUrl, text } = req.body;
+
+      // Validate required fields
+      if (!channelId || !user_id || !imageUrl) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing required fields: channelId, user_id, and imageUrl are required',
+        });
+      }
+
+      // Validate image URL format
+      if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+        return res.status(400).json({
+          success: false,
+          error: 'imageUrl must be a valid HTTP/HTTPS URL',
+        });
+      }
+
+      console.log('🖼️ [ZaloController] Sending image:', {
+        channelId,
+        user_id,
+        imageUrl,
+        hasText: !!text,
+      });
+
+      // Get access token for this channel
+      const accessToken = await this.getZaloAccessToken(channelId);
+
+      // Build message payload according to Zalo API v3.0
+      const messagePayload = {
+        recipient: {
+          user_id: user_id,
+        },
+        message: {
+          attachment: {
+            type: 'template',
+            payload: {
+              template_type: 'media',
+              elements: [
+                {
+                  media_type: 'image',
+                  url: imageUrl,
+                },
+              ],
+            },
+          },
+        },
+      };
+
+      // Add text if provided
+      if (text && text.trim()) {
+        messagePayload.message.text = text.trim();
+      }
+
+      console.log('📤 [ZaloController] Sending to Zalo API:', JSON.stringify(messagePayload, null, 2));
+
+      // Send via Zalo CS Message API
+      const response = await axios.post(
+        'https://openapi.zalo.me/v3.0/oa/message/cs',
+        messagePayload,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'access_token': accessToken,
+          },
+        }
+      );
+
+      console.log('✅ [ZaloController] Zalo API response:', response.data);
+
+      // Check if Zalo returned an error
+      if (response.data.error !== 0 && response.data.error !== undefined) {
+        throw new Error(`Zalo API error: ${response.data.message || 'Unknown error'}`);
+      }
+
+      // Emit via socket for real-time update
+      try {
+        const { emitNewMessage } = require('../config/socket');
+        
+        // Find channel and conversation for socket emission
+        const channel = await prisma.channels.findUnique({
+          where: { id: channelId },
+        });
+
+        if (channel) {
+          const customer = await prisma.customers.findFirst({
+            where: {
+              groupId: channel.groupId,
+              customer_identities: {
+                some: {
+                  provider: 'ZALO',
+                  providerCustomerId: String(user_id),
+                },
+              },
+            },
+          });
+
+          if (customer) {
+            const conversation = await prisma.conversations.findFirst({
+              where: {
+                channelId: channel.id,
+                customerId: customer.id,
+              },
+              orderBy: { lastMessageAt: 'desc' },
+            });
+
+            if (conversation) {
+              // Emit socket message in Zalo format
+              emitNewMessage(conversation.id, {
+                message_id: response.data.data?.message_id || `msg_${Date.now()}`,
+                src: 0, // From OA
+                time: Date.now(),
+                sent_time: new Date().toISOString(),
+                from_id: channel.providerChannelId,
+                from_display_name: channel.name,
+                from_avatar: '',
+                to_id: user_id,
+                to_display_name: customer.name || '',
+                to_avatar: '',
+                type: 'image',
+                message: text || '',
+                url: imageUrl,
+              });
+
+              console.log('✅ [ZaloController] Socket message emitted');
+            }
+          }
+        }
+      } catch (socketError) {
+        console.error('⚠️ [ZaloController] Socket emission failed:', socketError.message);
+        // Don't fail the request if socket fails
+      }
+
+      return res.json({
+        success: true,
+        data: response.data,
+        imageUrl, // Return the URL for cleanup reference
+      });
+    } catch (error) {
+      console.error('❌ [ZaloController] Error sending image:', error);
+      return res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to send image',
+      });
+    }
+  }
+
+  /**
+   * Send file via Zalo OA
+   * POST /api/v1/zalo/oa/send-file
+   * 
+   * Sends a file to a user using Zalo's CS Message API.
+   * The file must be publicly accessible via HTTPS URL.
+   * 
+   * @body channelId - Channel ID (required)
+   * @body user_id - Zalo user ID (required)
+   * @body fileUrl - Publicly accessible HTTPS file URL (required)
+   * @body text - Optional message text to accompany the file
+   */
+  async sendZaloFile(req, res) {
+    try {
+      const { channelId, user_id, fileUrl, text } = req.body;
+
+      // Validate required fields
+      if (!channelId || !user_id || !fileUrl) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing required fields: channelId, user_id, and fileUrl are required',
+        });
+      }
+
+      // Validate file URL format
+      if (!fileUrl.startsWith('http://') && !fileUrl.startsWith('https://')) {
+        return res.status(400).json({
+          success: false,
+          error: 'fileUrl must be a valid HTTP/HTTPS URL',
+        });
+      }
+
+      console.log('📎 [ZaloController] Sending file:', {
+        channelId,
+        user_id,
+        fileUrl,
+        hasText: !!text,
+      });
+
+      // Get access token for this channel
+      const accessToken = await this.getZaloAccessToken(channelId);
+
+      // Build message payload - files use similar structure to images
+      const messagePayload = {
+        recipient: {
+          user_id: user_id,
+        },
+        message: {
+          attachment: {
+            type: 'file',
+            payload: {
+              url: fileUrl,
+            },
+          },
+        },
+      };
+
+      // Add text if provided
+      if (text && text.trim()) {
+        messagePayload.message.text = text.trim();
+      }
+
+      console.log('📤 [ZaloController] Sending file to Zalo API:', JSON.stringify(messagePayload, null, 2));
+
+      // Send via Zalo CS Message API
+      const response = await axios.post(
+        'https://openapi.zalo.me/v3.0/oa/message/cs',
+        messagePayload,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'access_token': accessToken,
+          },
+        }
+      );
+
+      console.log('✅ [ZaloController] Zalo API response:', response.data);
+
+      // Check if Zalo returned an error
+      if (response.data.error !== 0 && response.data.error !== undefined) {
+        throw new Error(`Zalo API error: ${response.data.message || 'Unknown error'}`);
+      }
+
+      // Emit via socket for real-time update
+      try {
+        const { emitNewMessage } = require('../config/socket');
+        
+        const channel = await prisma.channels.findUnique({
+          where: { id: channelId },
+        });
+
+        if (channel) {
+          const customer = await prisma.customers.findFirst({
+            where: {
+              groupId: channel.groupId,
+              customer_identities: {
+                some: {
+                  provider: 'ZALO',
+                  providerCustomerId: String(user_id),
+                },
+              },
+            },
+          });
+
+          if (customer) {
+            const conversation = await prisma.conversations.findFirst({
+              where: {
+                channelId: channel.id,
+                customerId: customer.id,
+              },
+              orderBy: { lastMessageAt: 'desc' },
+            });
+
+            if (conversation) {
+              emitNewMessage(conversation.id, {
+                message_id: response.data.data?.message_id || `msg_${Date.now()}`,
+                src: 0, // From OA
+                time: Date.now(),
+                sent_time: new Date().toISOString(),
+                from_id: channel.providerChannelId,
+                from_display_name: channel.name,
+                from_avatar: '',
+                to_id: user_id,
+                to_display_name: customer.name || '',
+                to_avatar: '',
+                type: 'file',
+                message: text || '',
+                url: fileUrl,
+              });
+
+              console.log('✅ [ZaloController] Socket message emitted');
+            }
+          }
+        }
+      } catch (socketError) {
+        console.error('⚠️ [ZaloController] Socket emission failed:', socketError.message);
+      }
+
+      return res.json({
+        success: true,
+        data: response.data,
+      });
+    } catch (error) {
+      console.error('❌ [ZaloController] Error sending file:', error);
+      return res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to send file',
+      });
+    }
   }
 }
 

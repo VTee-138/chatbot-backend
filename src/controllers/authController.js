@@ -340,11 +340,17 @@ const refreshToken = catchAsync(async (req, res) => {
     const newHashedToken = await hashPassword(tokens.refreshToken)
     await redis.set(`refresh:${user.id}`, newHashedToken.valueOf(), 'EX', Constants.TIME_PICKER._7day_secs)
 
-    // Update cookies with new tokens and fresh user data
+    // ✅ FIX: Update ALL cookies including accessToken
+    httpOnlyResponse(res, "accessToken", tokens.accessToken, Constants.TIME_PICKER._15mins_ms)
     httpOnlyResponse(res, "refreshToken", tokens.refreshToken, Constants.TIME_PICKER._7day_ms)
     httpOnlyResponse(res, "clientInformation", JSON.stringify(updatedPayload), Constants.TIME_PICKER._7day_ms)
+    
+    // Update active group cookie if exists
+    if (activeGroup) {
+      httpOnlyResponse(res, "activeGroup", JSON.stringify(activeGroup), Constants.TIME_PICKER._7day_ms)
+    }
 
-    console.log(`✅ Access token refreshed successfully for user: ${user.userName}`);
+    logger.log(`✅ Access token refreshed successfully for user: ${user.userName}`);
 
     return successResponse(res, {
       accessToken: tokens.accessToken,
@@ -449,7 +455,8 @@ const logout = catchAsync(async (req, res) => {
       console.log('⚠️ No user ID found in cookies, clearing cookies anyway');
     }
     
-    // Clear all auth-related cookies
+    // ✅ FIX: Clear ALL auth-related cookies including accessToken
+    httpOnlyRevoke(res, "accessToken");
     httpOnlyRevoke(res, "refreshToken");
     httpOnlyRevoke(res, "clientInformation");
     httpOnlyRevoke(res, "activeGroup");
@@ -462,7 +469,8 @@ const logout = catchAsync(async (req, res) => {
     return successResponse(res, null, 'Logout successful');
   } catch (error) {
     console.error('❌ Logout error:', error);
-    // Even if there's an error, still clear cookies
+    // Even if there's an error, still clear ALL cookies
+    httpOnlyRevoke(res, "accessToken");
     httpOnlyRevoke(res, "refreshToken");
     httpOnlyRevoke(res, "clientInformation");
     httpOnlyRevoke(res, "activeGroup");

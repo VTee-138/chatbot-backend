@@ -87,6 +87,28 @@ router.post('/oa/list-recent-chat', authenticate, zaloController.listRecentChat)
 router.post('/oa/send-message', authenticate, zaloController.sendMessage);
 
 /**
+ * @route   POST /api/v1/zalo/oa/send-image
+ * @desc    Send an image to a user via Zalo OA
+ * @access  Private
+ * @body    channelId - Channel ID (required)
+ * @body    user_id - Zalo user ID (required)
+ * @body    imageUrl - Image URL (required) - publicly accessible URL
+ * @body    text - Optional message text to send with image
+ */
+router.post('/oa/send-image', authenticate, zaloController.sendZaloImage);
+
+/**
+ * @route   POST /api/v1/zalo/oa/send-file
+ * @desc    Send a file to a user via Zalo OA
+ * @access  Private
+ * @body    channelId - Channel ID (required)
+ * @body    user_id - Zalo user ID (required)
+ * @body    fileUrl - File URL (required) - publicly accessible URL
+ * @body    text - Optional message text to send with file
+ */
+router.post('/oa/send-file', authenticate, zaloController.sendZaloFile);
+
+/**
  * @route   POST /api/v1/zalo/webhook
  * @desc    Handle Zalo webhook events
  * @access  Public (Zalo will POST to this endpoint)

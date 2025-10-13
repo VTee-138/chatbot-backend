@@ -112,9 +112,14 @@ const authenticate = async (req, res, next) => {
         tokenPreview: token ? token.substring(0, 20) + '...' : 'null'
       });
       
-      // Provide specific error messages
+      // ✅ FIX: Provide specific error code for expired tokens
       if (jwtError.name === 'TokenExpiredError') {
-        return errorResponse(res, 'Access token has expired. Please refresh your token.', 401);
+        return res.status(401).json({
+          success: false,
+          message: 'Access token has expired',
+          code: 'TOKEN_EXPIRED', // Frontend can check this code
+          error: 'Access token has expired'
+        });
       } else if (jwtError.name === 'JsonWebTokenError') {
         return errorResponse(res, 'Invalid access token. Please login again.', 401);
       } else {
