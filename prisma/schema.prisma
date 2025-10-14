@@ -8,7 +8,7 @@ datasource db {
 }
 
 model User {
-  id                   String        @id @default(uuid()) @db.Uuid
+  id                   String        @id @default(uuid())
   email                String?       @unique
   avatarUrl            String?       @map("avatar_url")
   passwordHash         String?       @map("password_hash")
@@ -39,7 +39,7 @@ model SsoAccount {
 }
 
 model Plan {
-  id             String         @id @default(uuid()) @db.Uuid
+  id             String         @id @default(uuid())
   name           String
   price          Float
   limits         Json
@@ -47,13 +47,13 @@ model Plan {
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime?      @updatedAt @map("updated_at")
   subscriptions  Subscription[]
-  subscriptionId String         @db.Uuid
+  subscriptionId String
 
   @@map("plans")
 }
 
 model Group {
-  id                String    @id @default(uuid()) @db.Uuid
+  id                String    @id @default(uuid())
   name              String
   ownerId           String    @map("owner_id")
   autoAssignEnabled Boolean   @default(false) @map("auto_assign_enabled")
@@ -68,14 +68,14 @@ model Group {
   groupMembers   GroupMember[]
   users          User           @relation(fields: [ownerId], references: [id])
   subscriptions  Subscription[]
-  subscriptionId String         @db.Uuid
+  subscriptionId String
 
   @@unique([name, ownerId])
   @@map("groups")
 }
 
 model GroupMember {
-  id               String           @id @default(uuid()) @db.Uuid
+  id               String           @id @default(uuid())
   role             GroupRole        @default(member)
   userId           String           @map("user_id")
   groupId          String           @map("group_id")
@@ -92,7 +92,7 @@ model GroupMember {
 }
 
 model Subscription {
-  id        String             @id @default(uuid()) @db.Uuid
+  id        String             @id @default(uuid())
   groupId   String             @map("group_id")
   planId    String             @map("plan_id")
   status    SubscriptionStatus @default(pending)
@@ -108,7 +108,7 @@ model Subscription {
 }
 
 model Tag {
-  id        String    @id @default(uuid()) @db.Uuid
+  id        String    @id @default(uuid())
   name      String
   color     String?
   createdAt DateTime  @default(now()) @map("created_at")
@@ -120,7 +120,7 @@ model Tag {
 }
 
 model AiUsageLog {
-  id             String       @id @default(uuid()) @db.Uuid
+  id             String       @id @default(uuid())
   modelName      String       @map("model_name")
   totalTokens    Int          @map("total_tokens")
   cost           Float
@@ -134,7 +134,7 @@ model AiUsageLog {
 }
 
 model Channel {
-  id           String          @id @default(uuid()) @db.Uuid
+  id           String          @id @default(uuid())
   name         String
   provider     ChannelProvider
   providerId   String          @map("provider_id")
@@ -154,7 +154,7 @@ model Channel {
 }
 
 model Conversation {
-  id                     String       @id @default(uuid()) @db.Uuid
+  id                     String       @id @default(uuid())
   groupId                String       @map("group_id")
   channelId              String       @map("channel_id")
   customerId             String       @map("customer_id")
@@ -178,7 +178,7 @@ model Conversation {
 }
 
 model Customer {
-  id             String    @id @default(uuid()) @db.Uuid
+  id             String    @id @default(uuid())
   fullName       String    @map("full_name")
   avatarUrl      String?   @map("avatar_url")
   phoneNumber    String?   @map("phone_number")
@@ -204,7 +204,7 @@ model Customer {
 }
 
 model Message {
-  id             String        @id @default(uuid()) @db.Uuid
+  id             String        @id @default(uuid())
   conversationId String        @map("conversation_id")
   senderId       String?       @map("sender_id")
   senderType     SenderType    @default(customer) @map("sender_type")
@@ -226,7 +226,7 @@ model Message {
 }
 
 model MessageAttachment {
-  id             String         @id @default(uuid()) @db.Uuid
+  id             String         @id @default(uuid())
   messageId      String         @map("message_id")
   attachmentType AttachmentType @map("attachment_type")
   fileUrl        String         @map("file_url")
