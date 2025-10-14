@@ -1,8 +1,7 @@
-const { PrismaClient } = require('../../generated/prisma');
 const axios = require('axios');
 const crypto = require('crypto');
 const config = require('../config');
-const prisma = new PrismaClient();
+const prisma = require('../config/database');
 
 // Store for PKCE code verifiers (in production, use Redis)
 const pkceStore = new Map();

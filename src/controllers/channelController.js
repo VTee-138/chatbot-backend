@@ -1,5 +1,4 @@
-const { PrismaClient } = require('../../generated/prisma');
-const prisma = new PrismaClient();
+const prisma = require("../config/database");
 
 /**
  * Get channel by ID
@@ -69,11 +68,11 @@ exports.getChannelConversations = async (req, res) => {
   try {
     const { channelId } = req.params;
     const userId = req.user.userId;
-    const { 
-      page = 1, 
-      limit = 20, 
+    const {
+      page = 1,
+      limit = 20,
       status = 'OPEN',
-      search = '' 
+      search = ''
     } = req.query;
 
     // Verify user has access to this channel's group
@@ -229,7 +228,7 @@ exports.updateChannelStatus = async (req, res) => {
         groups: {
           include: {
             group_members: {
-              where: { 
+              where: {
                 userId,
                 role: { in: ['ADMIN', 'OWNER'] }
               }
@@ -256,7 +255,7 @@ exports.updateChannelStatus = async (req, res) => {
     // Update channel status
     const updatedChannel = await prisma.channels.update({
       where: { id: channelId },
-      data: { 
+      data: {
         status,
         updatedAt: new Date()
       }

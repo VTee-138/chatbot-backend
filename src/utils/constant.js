@@ -23,11 +23,11 @@ class Constants {
     static TIME_PICKER = {
         _30min: 30 * 60,
         _15min: 15 * 60,
-        _1day: 60*60*24,
-        _7day_ms:7*60*60*24*1000,
-        _7day_secs:7*60*60*24,
-        _1hour_ms:60*60*1000,
-        _120secs: 120 
+        _1day: 60 * 60 * 24,
+        _7day_ms: 7 * 60 * 60 * 24 * 1000,
+        _7day_secs: 7 * 60 * 60 * 24,
+        _1hour_ms: 60 * 60 * 1000,
+        _120secs: 120
     };
     static MESSAGES = {
         _UNAUTHORIZED: "User not available",
@@ -56,6 +56,7 @@ class ErrorResponse extends Error {
         this.statusCode = statusCode;
         this.errors = errors; // useful cho validation
         this.isOperational = isOperational; // để phân biệt lỗi nào nên trả chi tiết người dùng và lỗi nào không trả ra 
+        Object.setPrototypeOf(this, new.target.prototype)
         Error.captureStackTrace(this, this.constructor);
     }
 }

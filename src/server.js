@@ -10,7 +10,7 @@ const config = require('./config');
 const http = require("http");
 const routes = require('./routes/routes');
 const { Server } = require('socket.io');
-const { errorHandler, notFound, requestLogger } = require('./middleware');
+const { notFound, requestLogger } = require('./middleware');
 const { specs, swaggerUi, swaggerOptions } = require('./config/swagger');
 const session = require('express-session')
 const { RedisStore } = require('connect-redis')
@@ -18,6 +18,7 @@ const redis = require('./config/redis');
 const router = require('./routes/index');
 const { sendMessage } = require('./controllers/chatbotController');
 const { generalLimiter } = require('./middleware/auth');
+const errorHandler = require('./middleware/errorHandler');
 const app = express();
 app.use(express.static(path.join(__dirname, "../public")))
 // Rate limiting
@@ -125,9 +126,9 @@ app.use(errorHandler);
 const startServer = async () => {
   try {
     // Test database connection
-const prisma = require('./config/database');
-const { checkNodeMailer } = require('./utils/checkConfiguration') 
-await prisma.$connect();
+    const prisma = require('./config/database');
+    const { checkNodeMailer } = require('./utils/checkConfiguration')
+    await prisma.$connect();
     console.log("✅ Database connected successfully");
     checkRedis();
     checkNodeMailer();
