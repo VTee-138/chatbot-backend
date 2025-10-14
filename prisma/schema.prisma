@@ -134,21 +134,21 @@ model AiUsageLog {
 }
 
 model Channel {
-  id                String          @id @default(uuid()) @db.Uuid
-  name              String
-  provider          ChannelProvider
-  providerChannelId String          @map("provider_channel_id")
-  accessToken       String?         @map("access_token")
-  refreshToken      String?         @map("refresh_token")
-  groupId           String          @map("group_id")
-  createdAt         DateTime        @default(now()) @map("created_at")
-  updatedAt         DateTime?       @updatedAt @map("updated_at")
-  status            ChannelStatus   @default(active)
+  id           String          @id @default(uuid()) @db.Uuid
+  name         String
+  provider     ChannelProvider
+  providerId   String          @map("provider_id")
+  accessToken  String?         @map("access_token")
+  refreshToken String?         @map("refresh_token")
+  groupId      String          @map("group_id")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime?       @updatedAt @map("updated_at")
+  status       ChannelStatus   @default(active)
 
   groups        Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
   conversations Conversation[]
 
-  @@unique([provider, providerChannelId])
+  @@unique([provider, providerId])
   @@index([groupId])
   @@map("channels")
 }
