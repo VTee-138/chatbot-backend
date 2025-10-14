@@ -42,7 +42,6 @@ const verifyMail = catchAsync(async (req, res, next) => {
 const register = catchAsync(async (req, res, next) => {
   try {
     const { email, userName, password, captchaToken } = req.body;
-    
     // Import turnstile service
     const { verifyTurnstileToken } = require('../services/turnstileService');
     
@@ -66,7 +65,7 @@ const register = catchAsync(async (req, res, next) => {
       
     // Check username exists?
     const checker = await userCredentialModel.findAccountWithUserName(userName)
-    if (checker) return errorResponse(res, 'Tên người dùng đã tồn tại', Constants.BAD_REQUEST)
+    if (checker && checker.emailVerifiedAt) return errorResponse(res, 'Tên người dùng đã tồn tại', Constants.BAD_REQUEST)
         
     // Hash password
     const hashedPassword = await hashPassword(password);
@@ -77,15 +76,18 @@ const register = catchAsync(async (req, res, next) => {
       userName: userName
     }
     await userCredentialModel.registerNewUser(newUser)
-    // Store registerEmail on httpOnly
-    httpOnlyResponse(res, "registerEmail", email, Constants.TIME_PICKER._1hour_ms)
-
+    
+    // Generate token
     const validateToken = generateToken({email: email}, 'validate')
     await redis.set(`register:${email}`, validateToken, 'EX', Constants.TIME_PICKER._120secs)
     
+    // Store registerEmail on httpOnly
+    httpOnlyResponse(res, "registerEmail", email, Constants.TIME_PICKER._1hour_ms)
+    httpOnlyResponse(res, "registerEmailToken", validateToken, Constants.TIME_PICKER._1hour_ms)
+    
     // Send email to verify
     try {
-      await sendEmailToVerify(EmailType.REGISTER, config.URL_MAIL_PUBLIC, validateToken, email, '🚀 Link xác thực tài khoản đăng ký đã tới!', HtmlConverter.Register)
+      sendEmailToVerify(EmailType.REGISTER, config.URL_MAIL_PUBLIC, validateToken, email, '🚀 Link xác thực tài khoản đăng ký đã tới!', HtmlConverter.Register)
       
       const message = config.NODE_ENV === 'development'
         ? 'Đã đăng ký tài khoản thành công! (Development mode - check server logs for verification email)'
@@ -580,7 +582,7 @@ const changePassword = catchAsync(async (req, res) => {
   const clientId = cookieHelper.getClientId(req)
   // Get user with password
   const user = await userCredentialModel.findUserById(clientId)
-  console.log(user)
+
   // Verify current password
   const isCurrentPasswordValid = await comparePassword(oldPassword, user.passwordHash);
   
@@ -598,16 +600,16 @@ const resendVerifyEmail = catchAsync(async (req, res, next) =>{
   // GET FIELDS
   try {
     const { type } = req.params
-    const { jwt, token } = req.body
-    const authToken = token || jwt; // Support both formats
+    // const { jwt, token } = req.body
     const email = cookieHelper.getServiceGmail(req)
-    
+    const authToken = cookieHelper.getServiceEmailToken(req)
+
     if (!EmailTypeList.includes(type)) {
       return errorResponse(res, 'Invalid type params', Constants.BAD_REQUEST)
     }
     
     if (!authToken) {
-      return errorResponse(res, 'Token is required', Constants.BAD_REQUEST)
+      return errorResponse(res, 'Token is expired', Constants.BAD_REQUEST)
     }
   
     // SET CONTENT TO SEND MAIL
@@ -617,9 +619,20 @@ const resendVerifyEmail = catchAsync(async (req, res, next) =>{
     const { iat, exp, ...decodedInformation } = verifyToken(authToken, "validate")
     const newToken = generateToken( decodedInformation, 'validate')
     await redis.set(`${type}:${email}`, newToken, 'EX', Constants.TIME_PICKER._120secs)
-    
+    // Reset new httpOnly Token
+    if (type == 'register')
+    {
+      httpOnlyResponse(res, "registerEmail", email, Constants.TIME_PICKER._1hour_ms)
+      httpOnlyResponse(res, "registerEmailToken", newToken, Constants.TIME_PICKER._1hour_ms)
+    }
+    else
+    {
+      httpOnlyResponse(res, "forgotEmail", email, Constants.TIME_PICKER._1hour_ms)
+      httpOnlyResponse(res, "forgotEmailToken", newToken, Constants.TIME_PICKER._1hour_ms)
+    }
+
     // Send Email
-    await sendEmailToVerify(type, config.URL_MAIL_PUBLIC, newToken, email, subject, htmlConverter)
+    sendEmailToVerify(type, config.URL_MAIL_PUBLIC, newToken, email, subject, htmlConverter)
     return successResponse(res, 'Đã nhận được yêu cầu của bạn, vui lòng xác nhận trong email!', 200)
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
@@ -683,7 +696,6 @@ const resetPassword = catchAsync( async (req, res, next) => {
 const openSession = catchAsync ( async (req, res, next) => {
   try {
     const user = req.user
-    console.log(user)
     if (!user) throw new ErrorResponse(Constants.MESSAGES._UNAUTHORIZED, Constants.UNAUTHORIZED)
     
     // Get SSO providers

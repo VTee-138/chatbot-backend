@@ -15,12 +15,13 @@ const { errorResponse, successResponse, catchAsync } = require("./response")
 const redisValidate = (type, keyGetter) =>{
      return async (req, res, next) => {
         try {
+            const typeValue = typeof type === "function" ? req.params.type : type;
             const data = typeof keyGetter === "function" ? keyGetter(req) : keyGetter;
             if (!data) {
                 throw new ErrorResponse(res, Constants.MESSAGES._UNAUTHORIZED, Constants.UNAUTHORIZED);
             }
-            const value = await redis.get(`${type}:${data}`);
-            if (value && EmailTypeList.includes(type)) {
+            const value = await redis.get(`${typeValue}:${data}`);
+            if (value && EmailTypeList.includes(typeValue)) {
                 return errorResponse(res, "Vui lòng kiểm tra mail xác nhận để kích hoạt tài khoản!", Constants.BAD_REQUEST);
             }
             else if (value) return errorResponse(res, "BAD REQUESTS!", Constants.BAD_REQUEST);

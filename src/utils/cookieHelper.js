@@ -51,6 +51,12 @@ class CookieHelper {
         if (!email) throw new ErrorResponse(Constants.MESSAGES._UNAUTHORIZED, Constants.UNAUTHORIZED)
         return email
     }
+
+    getServiceEmailToken(req){
+        const token = req.cookies.registerEmailToken ?? req.cookies.forgotEmailToken
+        if (!token) throw new ErrorResponse(Constants.MESSAGES._UNAUTHORIZED, Constants.UNAUTHORIZED)
+        return token
+    }
 }
 
 module.exports = new CookieHelper()

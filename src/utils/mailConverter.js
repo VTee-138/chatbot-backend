@@ -10,7 +10,7 @@
  * //Send link forgot
  * linkVerifyingToSend('abc', EmailType.FORGOT, 'chatgpt.com') => "https://chatgpt.com=/forgot/auth/abc"
  */
-const linkVerifyingToSend = (code, type, domain) => `Link xác thực của bạn là: https://${domain}/${type}/auth/code=${code}`
+const linkVerifyingToSend = (code, type, domain) => `https://${domain}/${type}/auth/code=${code}`
 
 // HTML DESIGN
 // Lưu ý những file HTML chỉ nên có mỗi 
@@ -19,28 +19,28 @@ const htmlRegisterVerifiedLink = (link, user_email) => `
         <h2 style="color: purple; margin-bottom: 10px;">Xin chào, ${user_email.split('@')[0]} 👋</h2>
         <p style="font-size: 16px; color: #333;">
             Bạn vừa yêu cầu <strong>xác thực tài khoản mới</strong> cho tài khoản của mình.
-            Nhấn vào liên kết bên dưới để tiếp tục quá trình:
+            Nhấn vào nút bên dưới để tiếp tục quá trình:
         </p>
-        <div style="padding: 5px 5px; background: white; color: #fff; display: inline-block; border-radius: 10px; font-size: 16px; letter-spacing: 2px;">
-        <p style="color:white;">${link}</p>
+        <div style="text-align: center; margin: 20px 0;">
+            <a href="${link}" style="background-color: purple; color: white; padding: 12px 25px; text-decoration: none; border-radius: 8px; font-size: 16px; display: inline-block;">Xác nhận tài khoản</a>
         </div>
         <p style="margin-top: 20px; font-size: 14px; color: #666;">
-        Mã có hiệu lực trong 40 giây. Đừng chia sẻ mã này với bất kỳ ai.
+        Liên kết này có hiệu lực trong 1 giờ. Đừng chia sẻ nó với bất kỳ ai.
         </p>
     </div>`
 const htmlForgotVerifiedLink = (link, user_email) => `
     <div style="font-family: Arial, sans-serif; padding: 20px; background: #f8f5ff; border-radius: 10px;">
-        <h2 style="color: purple; margin-bottom: 10px;">Xin chào, ${user_email.split('@')[0]} 👋</h2>
-        <p style="font-size: 16px; color: #333;">
-        Bạn vừa yêu cầu <strong>đặt lại mật khẩu</strong> cho tài khoản của mình.
-        Nhấn vào liên kết bên dưới để tiếp tục quá trình:
-        </p>
-        <div style="padding: 5px 5px; background: white; color: #fff; display: inline-block; border-radius: 10px; font-size: 16px; letter-spacing: 2px;">
-            <p style="color:white;">${link}</p>
-        </div>
-        <p style="margin-top: 20px; font-size: 14px; color: #666;">
-        Liên kết này có hiệu lực trong 40 giây. Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.
-        </p>
+    <h2 style="color: purple; margin-bottom: 10px;">Xin chào, ${user_email.split('@')[0]} 👋</h2>
+    <p style="font-size: 16px; color: #333;">
+        Bạn vừa yêu cầu <strong>quên mật khẩu</strong> cho tài khoản của mình.
+        Nhấn vào nút bên dưới để cài đặt lại mật khẩu:
+    </p>
+    <div style="text-align: center; margin: 20px 0;">
+        <a href="${link}" style="background-color: purple; color: white; padding: 12px 25px; text-decoration: none; border-radius: 8px; font-size: 16px; display: inline-block;">Cài đặt lại mật khẩu</a>
+    </div>
+    <p style="margin-top: 20px; font-size: 14px; color: #666;">
+        Liên kết này có hiệu lực trong 1 giờ. Đừng chia sẻ nó với bất kỳ ai.
+    </p>
     </div>
 `;
 
