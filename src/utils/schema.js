@@ -67,11 +67,6 @@ const RegisterNewUserSchema = Joi.object({
       "string.pattern.base": "Username không được chứa khoảng cách và ký tự đặc biệt",
       "any.required": "Vui lòng nhập username"
     }),
-    phoneNumber: Joi.string()
-    .pattern(/^\d{10}$/) // đúng 10 số
-    .messages({
-      "string.pattern.base": "Số điện thoại phải gồm đúng 10 chữ số",
-    }),
     confirmPassword: Joi.string()
     .valid(Joi.ref('password'))
     .required()
@@ -79,6 +74,16 @@ const RegisterNewUserSchema = Joi.object({
       "any.only": "Mật khẩu xác nhận không khớp",
       "any.required": "Vui lòng nhập mật khẩu xác nhận"
     }),
+    captchaToken: Joi.string()
+    .trim() // Xóa khoảng trắng
+    .min(500)
+    .required()
+    .pattern(/^[A-Za-z0-9_\-.]+$/) // Chỉ có những token hợp lệ
+    .messages({
+      "any.required":"Thiếu",
+      "string.max": "Token quá dài, có thể bị lỗi.",
+      "string.pattern.base": "Token chứa ký tự không hợp lệ.",
+    })
 })
 
 const RegisterSSOSchema = Joi.object({
@@ -96,13 +101,23 @@ const RegisterSSOSchema = Joi.object({
       "string.pattern.base": "Số điện thoại phải gồm đúng 10 chữ số",
     })
 }) 
-const EmailSchema = Joi.object({
+const EmailWithCaptchaSchema = Joi.object({
   email: Joi.string()
   .email()
   .required()
   .messages({
     "string.email": "Email không hợp lệ, Email là thông tin bắt buộc",
     "any.required": "Vui lòng nhập email"
+  }),
+  captchaToken: Joi.string()
+  .trim() // Xóa khoảng trắng
+  .min(500)
+  .required()
+  .pattern(/^[A-Za-z0-9_\-.]+$/) // Chỉ có những token hợp lệ
+  .messages({
+    "any.required":"Thiếu",
+    "string.max": "Token quá dài, có thể bị lỗi.",
+    "string.pattern.base": "Token chứa ký tự không hợp lệ.",
   })
 })
 const LoginSchema = Joi.object({
@@ -126,4 +141,4 @@ const twoFactorSchema = Joi.object({
     "any.required": "Thiếu token"
   })
 })
-module.exports = { twoFactorSchema,RegisterSSOSchema, LoginSchema,RegisterNewUserSchema, ResetForgotPasswordSchema, ResetPasswordSchema, EmailSchema}
+module.exports = { twoFactorSchema,RegisterSSOSchema, LoginSchema,RegisterNewUserSchema, ResetForgotPasswordSchema, ResetPasswordSchema, EmailWithCaptchaSchema}

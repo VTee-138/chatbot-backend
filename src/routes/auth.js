@@ -34,9 +34,7 @@ const schemaValidate = require("../utils/schemaValidate");
 const {
   ResetPasswordSchema,
   RegisterNewUserSchema,
-  RegisterWithEmailSchema,
   ResetForgotPasswordSchema,
-  EmailSchema,
   LoginSchema,
   LoginWithCaptchaSchema,
   twoFactorSchema,
@@ -48,14 +46,14 @@ const authRouter = express.Router();
 
 authRouter.post(
   "/register",
-  schemaValidate(RegisterWithEmailSchema, "body"),
+  schemaValidate(RegisterNewUserSchema, "body"),
   register
 );
-authRouter.post(
-  "/register/check-email",
-  schemaValidate(EmailWithCaptchaSchema, "body"),
-  checkEmailExists
-);
+// authRouter.post(
+//   "/register/check-email",
+//   schemaValidate(EmailWithCaptchaSchema, "body"),
+//   checkEmailExists
+// );
 authRouter.post(
   "/login",
   authLimiter,
