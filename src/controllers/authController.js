@@ -41,7 +41,7 @@ const verifyMail = catchAsync(async (req, res, next) => {
  */
 const register = catchAsync(async (req, res, next) => {
   try {
-    const { email, userName, password, phoneNumber, captchaToken } = req.body;
+    const { email, userName, password, captchaToken } = req.body;
     
     // Import turnstile service
     const { verifyTurnstileToken } = require('../services/turnstileService');
@@ -70,14 +70,16 @@ const register = catchAsync(async (req, res, next) => {
         
     // Hash password
     const hashedPassword = await hashPassword(password);
+    // package to update db
     const newUser = {
       email: email,
       passwordHash: hashedPassword.valueOf(),
-      phoneNumber: phoneNumber,
       userName: userName
     }
     await userCredentialModel.registerNewUser(newUser)
-        
+    // Store registerEmail on httpOnly
+    httpOnlyResponse(res, "registerEmail", email, Constants.TIME_PICKER._1hour_ms)
+
     const validateToken = generateToken({email: email}, 'validate')
     await redis.set(`register:${email}`, validateToken, 'EX', Constants.TIME_PICKER._120secs)
     
