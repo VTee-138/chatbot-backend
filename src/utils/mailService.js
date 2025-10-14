@@ -14,7 +14,7 @@ const {linkVerifyingToSend} = require('../utils/mailConverter.js')
  */
 const sendEmailToVerify  = async (type, domain, code, email, subject, htmlConverter) => {
     try {
-        const link = linkVerifyingToSend(code, type, domain) 
+        const link = linkVerifyingToSend(code, type, domain)
         const htmlContent = htmlConverter(link, email)
         await sendEmail(mail, email, subject, link, htmlContent)    
     } catch (error) {

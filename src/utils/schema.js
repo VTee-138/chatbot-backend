@@ -54,6 +54,13 @@ const ResetPasswordSchema = Joi.object({
  * @type Joi Object
  */
 const RegisterNewUserSchema = Joi.object({
+    email: Joi.string()
+    .email()
+    .required()
+    .messages({
+      "string.email": "Email không hợp lệ, Email là thông tin bắt buộc",
+      "any.required": "Vui lòng nhập email"
+    }),
     password: Joi.string()
     .pattern(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*?&._\s]{8,}$/)
     .required()
