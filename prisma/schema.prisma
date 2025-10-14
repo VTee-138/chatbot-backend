@@ -1,354 +1,337 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = "postgresql://n8n_user:n8n_pass@100.92.102.97:5432/ai_chatbot_db"
+  url      = env("DATABASE_URL")
 }
 
 model User {
-  id                        String                      @id @default(cuid())
-  email                     String?                     @unique
-  avatarUrl                 String?
-  passwordHash              String?
-  emailVerifiedAt           DateTime?
-  createdAt                 DateTime                    @default(now())
-  updatedAt                 DateTime                    @updatedAt
-  role                      Role                        @default(USER)
-  twoFactorBackupCodes      String[]
-  twoFactorEnabled          Boolean                     @default(false)
-  twoFactorSecret           String?
-  phoneNumber               String?
-  userName                  String?                     @unique
-  email_verification_tokens email_verification_tokens[]
-  group_members             group_members[]
-  groups                    groups[]
-  invitations               invitations[]
-  password_reset_tokens     password_reset_tokens[]
-  sessions                  sessions[]
-  ssoAccounts               ssoAccount[]
+  id                   String        @id @default(uuid()) @db.Uuid
+  email                String?       @unique
+  avatarUrl            String?       @map("avatar_url")
+  passwordHash         String?       @map("password_hash")
+  emailVerifiedAt      DateTime?     @map("email_verified_at")
+  createdAt            DateTime      @default(now()) @map("created_at")
+  updatedAt            DateTime?     @updatedAt @map("updated_at")
+  role                 Role          @default(user)
+  twoFactorBackupCodes String[]      @map("two_factor_backup_codes")
+  twoFactorEnabled     Boolean       @default(false) @map("two_factor_enabled")
+  twoFactorSecret      String?       @map("two_factor_secret")
+  phoneNumber          String?       @map("phone_number")
+  userName             String?       @unique @map("user_name")
+  groupMembers         GroupMember[]
+  groups               Group[]
+  ssoAccounts          SsoAccount[]
 
-  @@map("users")  
+  @@map("users")
 }
 
-model ssoAccount {
-  provider       String
-  userId         String
-  providerId     String
-  user           User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+model SsoAccount {
+  provider   String
+  userId     String @map("user_id")
+  providerId String @map("provider_id")
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([provider, providerId])
   @@map("sso_accounts")
 }
 
-model ai_usage_logs {
-  id               String        @id @default(uuid())
-  modelName        String
-  promptTokens     Int
-  completionTokens Int
-  totalTokens      Int
-  cost             Float
-  createdAt        DateTime      @default(now())
-  groupId          String
-  conversationId   String
-  conversations    conversations @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  groups           groups        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+model Plan {
+  id             String         @id @default(uuid()) @db.Uuid
+  name           String
+  price          Float
+  limits         Json
+  type           PlanType
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime?      @updatedAt @map("updated_at")
+  subscriptions  Subscription[]
+  subscriptionId String         @db.Uuid
+
+  @@map("plans")
 }
 
-model channels {
-  id                String          @id @default(cuid())
+model Group {
+  id                String    @id @default(uuid()) @db.Uuid
+  name              String
+  ownerId           String    @map("owner_id")
+  autoAssignEnabled Boolean   @default(false) @map("auto_assign_enabled")
+  aiModelCredits    Float     @default(0) @map("ai_model_credits")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime? @updatedAt @map("updated_at")
+
+  aiUsageLog     AiUsageLog[]
+  channels       Channel[]
+  conversations  Conversation[]
+  customers      Customer[]
+  groupMembers   GroupMember[]
+  users          User           @relation(fields: [ownerId], references: [id])
+  subscriptions  Subscription[]
+  subscriptionId String         @db.Uuid
+
+  @@unique([name, ownerId])
+  @@map("groups")
+}
+
+model GroupMember {
+  id               String           @id @default(uuid()) @db.Uuid
+  role             GroupRole        @default(member)
+  userId           String           @map("user_id")
+  groupId          String           @map("group_id")
+  status           InvitationStatus @default(accepted)
+  assignmentWeight Int              @default(0) @map("assignment_weight")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime?        @updatedAt @map("updated_at")
+  groups           Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  users            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  Conversation     Conversation[]
+
+  @@unique([userId, groupId])
+  @@map("group_members")
+}
+
+model Subscription {
+  id        String             @id @default(uuid()) @db.Uuid
+  groupId   String             @map("group_id")
+  planId    String             @map("plan_id")
+  status    SubscriptionStatus @default(pending)
+  expireAt  DateTime?          @map("expire_at")
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime?          @updatedAt @map("updated_at")
+
+  groups Group @relation(fields: [groupId], references: [id])
+  plans  Plan  @relation(fields: [planId], references: [id])
+
+  @@index([groupId])
+  @@map("subscriptions")
+}
+
+model Tag {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String
+  color     String?
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime? @updatedAt @map("updated_at")
+
+  customers Customer[]
+
+  @@map("tags")
+}
+
+model AiUsageLog {
+  id             String       @id @default(uuid()) @db.Uuid
+  modelName      String       @map("model_name")
+  totalTokens    Int          @map("total_tokens")
+  cost           Float
+  createdAt      DateTime     @default(now()) @map("created_at")
+  groupId        String       @map("group_id")
+  conversationId String       @map("conversation_id")
+  conversations  Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  groups         Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@map("ai_usage_logs")
+}
+
+model Channel {
+  id                String          @id @default(uuid()) @db.Uuid
   name              String
   provider          ChannelProvider
-  providerChannelId String
-  groupId           String
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  groups            groups          @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  conversations     conversations[]
+  providerChannelId String          @map("provider_channel_id")
+  accessToken       String?         @map("access_token")
+  refreshToken      String?         @map("refresh_token")
+  groupId           String          @map("group_id")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime?       @updatedAt @map("updated_at")
+  status            ChannelStatus   @default(active)
+
+  groups        Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
 
   @@unique([provider, providerChannelId])
   @@index([groupId])
+  @@map("channels")
 }
 
-model contacts {
-  id         String      @id @default(cuid())
-  type       ContactType
-  value      String
-  isPrimary  Boolean     @default(false)
-  customerId String
-  createdAt  DateTime    @default(now())
-  customers  customers   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+model Conversation {
+  id                     String       @id @default(uuid()) @db.Uuid
+  groupId                String       @map("group_id")
+  channelId              String       @map("channel_id")
+  customerId             String       @map("customer_id")
+  assigneeId             String?      @map("assignee_id")
+  createdAt              DateTime     @default(now()) @map("created_at")
+  updatedAt              DateTime?    @updatedAt @map("updated_at")
+  chatbotEnabled         Boolean      @default(true) @map("chatbot_enabled")
+  providerConversationId String       @unique @map("provider_conversation_id")
+  lastMessageAt          DateTime     @default(now()) @map("last_message_at")
+  providerAdId           String?      @map("provider_ad_id")
+  aiUsageLog             AiUsageLog[]
+  groupMembers           GroupMember? @relation(fields: [assigneeId], references: [id])
+  channels               Channel      @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  customers              Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  groups                 Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  messages               Message[]
 
-  @@unique([customerId, type, value])
-}
-
-model conversation_read_statuses {
-  conversationId String
-  groupMemberId  String
-  readAt         DateTime      @default(now())
-  conversations  conversations @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  group_members  group_members @relation(fields: [groupMemberId], references: [id], onDelete: Cascade)
-
-  @@id([conversationId, groupMemberId])
-}
-
-model conversations {
-  id                         String                       @id @default(uuid())
-  status                     ConversationStatus           @default(OPEN)
-  groupId                    String
-  channelId                  String
-  customerId                 String
-  assigneeId                 String?
-  createdAt                  DateTime                     @default(now())
-  updatedAt                  DateTime                     @updatedAt    
-  chatbotEnabled             Boolean                      @default(true)
-  providerConversationId     String                       @unique
-  lastMessageAt              DateTime                     @default(now())
-  providerAdId               String?
-  ai_usage_logs              ai_usage_logs[]
-  conversation_read_statuses conversation_read_statuses[]
-  group_members              group_members?               @relation(fields: [assigneeId], references: [id])
-  channels                   channels                     @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  customers                  customers                    @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  groups                     groups                       @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  
-  @@index([groupId])
   @@index([assigneeId])
+  @@index([groupId])
+  @@map("conversations")
 }
 
-model credit_purchases {
-  id             String   @id
-  amount         Float
-  cost           Float
-  stripeChargeId String   @unique
-  createdAt      DateTime @default(now())
-  groupId        String
-  groups         groups   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+model Customer {
+  id             String    @id @default(uuid()) @db.Uuid
+  fullName       String    @map("full_name")
+  avatarUrl      String?   @map("avatar_url")
+  phoneNumber    String?   @map("phone_number")
+  email          String?
+  identityNumber String?   @map("identity_number") // CCCD/CMND
+  address        String?
+  dateOfBirth    DateTime? @map("date_of_birth")
+  gender         Gender?
+  notes          String?   @db.Text
+  groupId        String    @map("group_id")
+  tagId          String?   @map("tag_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime? @updatedAt @map("updated_at")
+
+  conversations Conversation[]
+  groups        Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  tags          Tag?           @relation(fields: [tagId], references: [id])
+
+  @@index([groupId])
+  @@index([email])
+  @@index([phoneNumber])
+  @@map("customers")
 }
 
-model customer_identities {
-  id                 String          @id
-  provider           ChannelProvider
-  providerCustomerId String
-  customerId         String
-  customers          customers       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+model Message {
+  id             String        @id @default(uuid()) @db.Uuid
+  conversationId String        @map("conversation_id")
+  senderId       String?       @map("sender_id")
+  senderType     SenderType    @default(customer) @map("sender_type")
+  content        String        @db.Text
+  messageType    MessageType   @default(text) @map("message_type")
+  status         MessageStatus @default(sent)
+  deliveredAt    DateTime?     @map("delivered_at")
+  readAt         DateTime?     @map("read_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime?     @updatedAt @map("updated_at")
 
-  @@unique([provider, providerCustomerId])
+  conversations       Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message_attachments MessageAttachment[]
+  replyToMessageId    String?             @map("reply_to_message_id")
+  replyToMessage      Message?            @relation("MessageReplies", fields: [replyToMessageId], references: [id], onDelete: SetNull)
+  replies             Message[]           @relation("MessageReplies")
+
+  @@map("messages")
 }
 
-model customers {
-  id                  String                @id @default(cuid())
-  fullName            String
-  avatarUrl           String?
-  groupId             String
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt  
-  contacts            contacts[]
-  conversations       conversations[]
-  customer_identities customer_identities[]
-  groups              groups                @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  notes               notes[]
-  tags                tags[]                @relation("CustomerToTag")
-}
+model MessageAttachment {
+  id             String         @id @default(uuid()) @db.Uuid
+  messageId      String         @map("message_id")
+  attachmentType AttachmentType @map("attachment_type")
+  fileUrl        String         @map("file_url")
+  fileName       String?        @map("file_name")
+  fileSize       Int?           @map("file_size")
+  mimeType       String?        @map("mime_type")
 
-model email_verification_tokens {
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-  userId    String
-  tokenHash String   @id @unique
-  users     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
+  thumbnailUrl String? @map("thumbnail_url")
+  width        Int?
+  height       Int?
+  duration     Int?
 
-model group_members {
-  id                         String                       @id @default(cuid())
-  role                       GroupRole                    @default(MEMBER)
-  userId                     String
-  groupId                    String
-  createdAt                  DateTime                     @default(now())
-  assignmentWeight           Int                          @default(0)
-  canBeAssigned              Boolean                      @default(true)
-  updatedAt                  DateTime                     @updatedAt  
-  conversation_read_statuses conversation_read_statuses[]
-  conversations              conversations[]
-  groups                     groups                       @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  users                      User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  notes                      notes[]
+  providerFileId   String? @map("provider_file_id")
+  providerMetadata Json?   @map("provider_metadata")
 
-  @@unique([userId, groupId])
-}
+  createdAt DateTime @default(now()) @map("created_at")
 
-model groups {
-  id                String             @id @default(cuid())
-  name              String
-  slug              String             @unique
-  logoUrl           String?
-  countryCode       String?            // FK tới Country.code 
-  creatorId         String  
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  autoAssignEnabled Boolean            @default(false)
-  receptionMode     ReceptionMode      @default(MANUAL)
-  creditBalance     Float              @default(0)
-  // Suggesions dùng cho doanh nghiệp
-  phoneContact      String
-  emailContact      String
-  // Relations
-  ai_usage_logs     ai_usage_logs[]
-  channels          channels[]
-  conversations     conversations[]
-  credit_purchases  credit_purchases[]
-  customers         customers[]
-  group_members     group_members[]
-  users             User               @relation(fields: [creatorId], references: [id])
-  invitations       invitations[]
-  subscriptions     subscriptions?
-  tags              tags[]
-  country           Country?           @relation(fields: [countryCode], references: [code])
-}
-model Country {
-  code   String   @id                // ví dụ "VN", "US"
-  name   String
-  // Quan hệ 1-n: 1 country có nhiều groups
-  groups groups[]
-}
+  messages Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
-
-model invitations {
-  id          String           @id @default(cuid())
-  email       String
-  role        GroupRole
-  token       String           @unique
-  status      InvitationStatus @default(PENDING)
-  expiresAt   DateTime
-  groupId     String
-  invitedById String           // Thông tin người gửi lời mời
-  createdAt   DateTime         @default(now())
-  groups      groups           @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  users       User             @relation(fields: [invitedById], references: [id], onDelete: Cascade)
-}
-
-model notes {
-  id            String        @id @default(cuid())
-  content       String
-  customerId    String
-  authorId      String
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  group_members group_members @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  customers     customers     @relation(fields: [customerId], references: [id], onDelete: Cascade)
-}
-
-model password_reset_tokens {
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-  userId    String
-  tokenHash String   @id @unique
-  users     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model plans {
-  id                    String          @id
-  type                  PlanType        @unique
-  name                  String
-  price                 Float
-  maxGroups             Int
-  maxMembersPerGroup    Int
-  maxChannelsPerGroup   Int
-  monthlyCreditsGranted Float           @default(0)
-  stripePriceId         String?         @unique
-  subscriptions         subscriptions[]
-}
-
-model sessions {
-  id               String   @id @default(cuid())
-  userId           String
-  refreshTokenHash String   @unique
-  expiresAt        DateTime
-  userAgent        String?
-  ipAddress        String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  deviceId         String   @default(cuid())
-  users            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model subscriptions {
-  id                     String             @id @default(cuid())
-  groupId                String             @unique
-  planId                 String
-  stripeCustomerId       String?            @unique
-  stripeSubscriptionId   String?            @unique
-  stripeCurrentPeriodEnd DateTime?
-  status                 SubscriptionStatus @default(ACTIVE)
-  createdAt              DateTime           @default(now())
-  updatedAt              DateTime           @updatedAt
-  groups                 groups             @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  plans                  plans              @relation(fields: [planId], references: [id])
-}
-
-model tags {
-  id        String      @id @default(cuid())
-  name      String
-  color     String?
-  groupId   String
-  groups    groups      @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  customers customers[] @relation("CustomerToTag")
-
-  @@unique([groupId, name])
+  @@index([messageId])
+  @@index([attachmentType])
+  @@map("message_attachments")
 }
 
 enum Role {
-  USER
-  ADMIN
+  user
+  admin
 }
 
 enum PlanType {
-  FREE
-  PLUS
-  ENTERPRISE
+  personal
+  groups
 }
 
 enum ChannelProvider {
-  FACEBOOK
-  ZALO
-  INSTAGRAM
-  WEBSITE_LIVECHAT
+  facebook
+  zalo
+  instagram
 }
 
-enum ContactType {
-  EMAIL
-  PHONE
-}
-
-enum ConversationStatus {
-  OPEN
-  CLOSED
-  NEEDS_HUMAN_ATTENTION
+enum ChannelStatus {
+  active
+  inactive
+  pending
+  error
 }
 
 enum GroupRole {
-  ADMIN
-  MEMBER
-  OWNER
+  manager
+  member
+  owner
 }
 
 enum InvitationStatus {
-  PENDING
-  ACCEPTED
-  DECLINED
-  EXPIRED
-}
-
-enum ReceptionMode {
-  MANUAL
-  AI
+  pending
+  accepted
+  declined
 }
 
 enum SubscriptionStatus {
-  ACTIVE
-  CANCELED
-  PAST_DUE
-  INCOMPLETE
+  active
+  expired
+  cancelled
+  pending
+}
+
+enum MessageType {
+  text
+  image
+  file
+  audio
+  video
+  sticker
+}
+
+enum Direction {
+  incoming
+  outgoing
+}
+
+enum SenderType {
+  customer
+  bot
+}
+
+enum MessageStatus {
+  sent
+  delivered
+  read
+  failed
+}
+
+enum AttachmentType {
+  image
+  video
+  audio
+  file
+  sticker
+  location
+  contact
+}
+
+enum Gender {
+  male
+  female
+  other
+  prefer_not_to_say
 }
