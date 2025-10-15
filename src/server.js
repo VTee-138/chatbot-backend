@@ -108,7 +108,6 @@ app.get('/', (req, res) => {
     timestamp: new Date().toISOString(),
     documentation: `http://localhost:${config.PORT}/api-docs`,
     endpoints: {
-      health: `${config.API_PREFIX}/${config.API_VERSION}/health`,
       auth: `${config.API_PREFIX}/${config.API_VERSION}/auth`,
       organizations: `${config.API_PREFIX}/${config.API_VERSION}/organizations`,
       apiKeys: `${config.API_PREFIX}/${config.API_VERSION}/api-keys`,

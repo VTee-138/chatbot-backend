@@ -71,11 +71,11 @@ router.get('/:apiKeyId/usage', authenticate, getApiKeyUsage);
  * @desc    Get Group API keys
  * @access  Private (Group Member)
  */
-router.get(
-  '/groups/:id/api-keys',
-  authenticate,
-  requireGroupMember(['OWNER', 'ADMIN', 'MEMBER']),
-  getGroupApiKeys
-);
+// router.get(
+//   '/groups/:id/api-keys',
+//   authenticate,
+//   requireGroupMember(['OWNER', 'ADMIN', 'MEMBER']),
+//   getGroupApiKeys
+// );
 
 module.exports = router;

@@ -30,34 +30,25 @@ const {
   authLimiter,
   authenticate2FA,
 } = require("../middleware/auth");
-const schemaValidate = require("../utils/schemaValidate");
-const {
-  ResetPasswordSchema,
-  RegisterNewUserSchema,
-  ResetForgotPasswordSchema,
-  LoginSchema,
-  LoginWithCaptchaSchema,
-  twoFactorSchema,
-  EmailWithCaptchaSchema,
-} = require("../utils/schema");
-const { redisValidate } = require("../utils/validate");
+const { schemaValidate, redisValidate } = require("../middleware/validate");
+const AuthSchema = require("../validators/authSchema");
 const cookieHelper = require("../utils/cookieHelper");
 const authRouter = express.Router();
 
 authRouter.post(
   "/register",
-  schemaValidate(RegisterNewUserSchema, "body"),
+  schemaValidate(AuthSchema.RegisterNewUserSchema, "body"),
   register
 );
 // authRouter.post(
 //   "/register/check-email",
-//   schemaValidate(EmailWithCaptchaSchema, "body"),
+//   schemaValidate(AuthSchema.EmailWithCaptchaSchema, "body"),
 //   checkEmailExists
 // );
 authRouter.post(
   "/login",
   authLimiter,
-  schemaValidate(LoginWithCaptchaSchema, "body"),
+  schemaValidate(AuthSchema.LoginWithCaptchaSchema, "body"),
   login
 );
 authRouter.post("/refresh", refreshToken);
@@ -68,17 +59,17 @@ authRouter.put("/profile", authenticate, updateProfile);
 authRouter.post(
   "/change-password",
   authenticate,
-  schemaValidate(ResetPasswordSchema, "body"),
+  schemaValidate(AuthSchema.ResetPasswordSchema, "body"),
   changePassword
 );
 authRouter.post(
   "/forgot",
-  schemaValidate(EmailWithCaptchaSchema, "body"),
+  schemaValidate(AuthSchema.EmailWithCaptchaSchema, "body"),
   forgot
 );
 authRouter.post(
   "/reset-password",
-  schemaValidate(ResetForgotPasswordSchema, "validate"),
+  schemaValidate(AuthSchema.ResetForgotPasswordSchema, "validate"),
   resetPassword
 );
 authRouter.post("/register/verify-email", verifyMail);
@@ -99,25 +90,25 @@ authRouter.post("/logout-all", authenticate, removeAllDevices);
 authRouter.post(
   "/2fa/login/verify",
   authenticate2FA,
-  schemaValidate(twoFactorSchema, "body"),
+  schemaValidate(AuthSchema.twoFactorSchema, "body"),
   twoFactorVerify
 );
 authRouter.post(
   "/2fa/login/backup-codes/verify",
   authenticate2FA,
-  schemaValidate(twoFactorSchema, "body"),
+  schemaValidate(AuthSchema.twoFactorSchema, "body"),
   twoFactorBackupCodeVerify
 );
 authRouter.post(
   "/2fa/verify",
-  schemaValidate(twoFactorSchema, "body"),
+  schemaValidate(AuthSchema.twoFactorSchema, "body"),
   authenticate,
   twoFactorVerify
 );
 authRouter.post(
   "/2fa/backup-codes/verify",
   authenticate,
-  schemaValidate(twoFactorSchema, "body"),
+  schemaValidate(AuthSchema.twoFactorSchema, "body"),
   twoFactorBackupCodeVerify
 );
 authRouter.post(

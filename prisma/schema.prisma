@@ -24,6 +24,8 @@ model User {
   groupMembers         GroupMember[]
   groups               Group[]
   ssoAccounts          SsoAccount[]
+  orders               Order[]
+  payments             Payment[]
 
   @@map("users")
 }
@@ -192,6 +194,7 @@ model Customer {
   tagId          String?   @map("tag_id")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime? @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
 
   conversations Conversation[]
   groups        Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
@@ -249,6 +252,38 @@ model MessageAttachment {
   @@index([messageId])
   @@index([attachmentType])
   @@map("message_attachments")
+}
+
+model Order {
+  id         String      @id @default(uuid()) @map("id")
+  orderCode  String      @unique @map("order_code")
+  userId     String      @map("user_id")
+  targetType String      @map("target_type")
+  targetId   String      @map("target_id")
+  amount     Decimal     @map("amount")
+  status     OrderStatus @default(unpaind) @map("status")
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime?   @map("updated_at")
+  deletedAt  DateTime?   @map("deleted_at")
+
+  // Relations
+  user     User      @relation(fields: [userId], references: [id])
+  payments Payment[]
+}
+
+model Payment {
+  id            String        @id @default(uuid()) @map("id")
+  orderId       String        @map("order_id")
+  userId        String        @map("user_id")
+  amount        Decimal       @map("amount")
+  method        String?       @map("method")
+  status        PaymentStatus @default(pending) @map("status")
+  transactionId String?       @map("transaction_id")
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  // Relations
+  order Order @relation(fields: [orderId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
 }
 
 enum Role {
@@ -334,4 +369,16 @@ enum Gender {
   female
   other
   prefer_not_to_say
+}
+
+enum PaymentStatus {
+  pending
+  success
+  failed
+  refunded
+}
+
+enum OrderStatus {
+  unpaind
+  paid
 }
