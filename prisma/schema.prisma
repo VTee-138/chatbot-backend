@@ -255,16 +255,16 @@ model MessageAttachment {
 }
 
 model Order {
-  id         String      @id @default(uuid()) @map("id")
-  orderCode  String      @unique @map("order_code")
-  userId     String      @map("user_id")
-  targetType String      @map("target_type")
-  targetId   String      @map("target_id")
-  amount     Decimal     @map("amount")
-  status     OrderStatus @default(unpaid) @map("status")
-  createdAt  DateTime    @default(now()) @map("created_at")
-  updatedAt  DateTime?   @map("updated_at")
-  deletedAt  DateTime?   @map("deleted_at")
+  id        String      @id @default(uuid()) @map("id")
+  orderCode String      @unique @map("order_code")
+  userId    String      @map("user_id")
+  type      OrderType   @map("type")
+  amount    Decimal     @map("amount")
+  data      Json?       @map("data")
+  status    OrderStatus @default(unpaid) @map("status")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime?   @map("updated_at")
+  deletedAt DateTime?   @map("deleted_at")
 
   // Relations
   user     User      @relation(fields: [userId], references: [id])
@@ -325,7 +325,7 @@ enum SubscriptionStatus {
   active
   expired
   cancelled
-  pending
+  pending //khả năng kh còn cần cái này nữa
 }
 
 enum MessageType {
@@ -376,4 +376,10 @@ enum PaymentStatus {
 enum OrderStatus {
   unpaid
   paid
+}
+
+enum OrderType {
+  group_creation // tạo group mới (sau khi thanh toán mới thực sự insert group)
+  plan_renewal // gia hạn plan hiện tại của group
+  credit_purchase // mua thêm credit cho AI model
 }
