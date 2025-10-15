@@ -15,5 +15,6 @@ router.use('/channels', channelRouter);
 router.use('/api-keys', apiKeyRoutes);
 router.use('/zalo', zaloRouter);
 router.use('/users', userRouter);
+router.use('/groups', groupRouter);
 
 module.exports = router;

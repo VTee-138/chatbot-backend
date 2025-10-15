@@ -6,7 +6,7 @@ const Joi = require('joi')
  * @description: Validate thông tin request gửi đến cho việc thay đổi mật khẩu, khi **NOT AVAILABLE** trong session
  * @type Joi Object
  */
-class AuthSchema {
+class AuthValidators {
     static ResetForgotPasswordSchema = Joi.object({
         jwt: Joi.string().required().messages({ "any.required": "Vui lòng gửi kèm mã code có trong mail" }),
         newPassword: Joi.string()
@@ -161,4 +161,4 @@ class AuthSchema {
             })
     })
 }
-module.exports = AuthSchema;
+module.exports = AuthValidators;
