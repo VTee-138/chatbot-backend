@@ -261,7 +261,7 @@ model Order {
   targetType String      @map("target_type")
   targetId   String      @map("target_id")
   amount     Decimal     @map("amount")
-  status     OrderStatus @default(unpaind) @map("status")
+  status     OrderStatus @default(unpaid) @map("status")
   createdAt  DateTime    @default(now()) @map("created_at")
   updatedAt  DateTime?   @map("updated_at")
   deletedAt  DateTime?   @map("deleted_at")
@@ -337,11 +337,6 @@ enum MessageType {
   sticker
 }
 
-enum Direction {
-  incoming
-  outgoing
-}
-
 enum SenderType {
   customer
   bot
@@ -379,6 +374,6 @@ enum PaymentStatus {
 }
 
 enum OrderStatus {
-  unpaind
+  unpaid
   paid
 }
