@@ -5,8 +5,9 @@ const { successResponse } = require('../utils/response');
 const zaloRouter = require('./zalo');
 const authRouter = require('./auth');
 const userRouter = require('./userRouter');
-const groupRouter = require('./groups');
+const groupRouter = require('./groupsRouter');
 const channelRouter = require('./channels');
+const orderRouter = require('./orderRouter')
 
 const router = express.Router();
 // API routes
@@ -16,5 +17,6 @@ router.use('/api-keys', apiKeyRoutes);
 router.use('/zalo', zaloRouter);
 router.use('/users', userRouter);
 router.use('/groups', groupRouter);
+router.use('/orders', orderRouter);
 
 module.exports = router;

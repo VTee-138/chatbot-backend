@@ -8,7 +8,6 @@ const cookieParser = require('cookie-parser');
 const { checkRedis } = require('./utils/checkConfiguration')
 const config = require('./config');
 const http = require("http");
-const routes = require('./routes/routes');
 const { Server } = require('socket.io');
 const { notFound, requestLogger } = require('./middleware');
 const { specs, swaggerUi, swaggerOptions } = require('./config/swagger');
@@ -98,7 +97,7 @@ app.use(requestLogger);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, swaggerOptions));
 
 // API routes
-app.use(`/api/v1`, routes);
+app.use(`/api/v1`, router);
 app.use('/webhooks', webhookRoutes);
 // Root endpoint
 app.get('/', (req, res) => {

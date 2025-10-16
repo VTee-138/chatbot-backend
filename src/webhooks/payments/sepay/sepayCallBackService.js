@@ -1,3 +1,4 @@
+const { DurationUnit } = require("@prisma/client");
 const prisma = require("../../../config/database")
 const Constants = require("../../../utils/constant");
 /**
@@ -36,8 +37,17 @@ const handleSepayCallback = async (payload) => {
 
 
     // 4. Phần còn lại nằm trong transaction
-    const data = order.data || {};
+    const orderData = order.data || {};
     const orderType = order.type;
+    const planData = await prisma.plan.findUnique({
+        where: {
+            planId: orderData.planId,
+        },
+        select: {
+            durationValue: true,
+            durationUnit: true
+        }
+    })
 
     try {
         const txResult = await prisma.$transaction(async (tx) => {
@@ -63,10 +73,10 @@ const handleSepayCallback = async (payload) => {
 
             // b) Nếu group_creation -> tạo group, groupMember, subscription
             if (orderType === "group_creation") {
-                let groupName = data.name;
-                const planId = data.planId;
-                const durationValue = data.durationValue;
-                const durationUnit = data.durationUnit;
+                let groupName = orderData.name;
+                const planId = orderData.planId;
+                const durationValue = planData.durationValue;
+                const durationUnit = planData.durationUnit;
                 const existing = await tx.group
                     .findUnique({
                         where: {
@@ -124,10 +134,10 @@ const handleSepayCallback = async (payload) => {
 
             // c) Nếu plan_purchase hoặc plan_renewal -> xử lý subscription cho group
             if (orderType === "plan_purchase" || orderType === "plan_renewal") {
-                const groupId = data.groupId;
-                const planId = data.planId;
-                const durationValue = data.durationValue;
-                const durationUnit = data.durationUnit;
+                const groupId = orderData.groupId;
+                const planId = orderData.planId;
+                const durationValue = planData.durationValue;
+                const durationUnit = planData.durationUnit;
 
                 if (!groupId) {
                     throw new Constants.ErrorResponse("Thiếu groupId trong order.data", 400);
