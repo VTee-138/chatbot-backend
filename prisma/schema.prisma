@@ -382,4 +382,5 @@ enum OrderType {
   group_creation // tạo group mới (sau khi thanh toán mới thực sự insert group)
   plan_renewal // gia hạn plan hiện tại của group
   credit_purchase // mua thêm credit cho AI model
+  plan_change //upgrade hoặc downgrade 1 plan nào đó
 }
