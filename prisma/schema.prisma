@@ -99,7 +99,6 @@ model Subscription {
   id        String    @id @default(uuid())
   groupId   String    @map("group_id")
   planId    String    @map("plan_id")
-  isActive  Boolean   @default(true) @map("is_active")
   startedAt DateTime? @map("start_at")
   expireAt  DateTime? @map("expire_at")
   createdAt DateTime  @default(now()) @map("created_at")
@@ -275,14 +274,14 @@ model Order {
 }
 
 model Payment {
-  id            String        @id @default(uuid()) @map("id")
-  orderId       String        @map("order_id")
-  userId        String        @map("user_id")
-  amount        Decimal       @map("amount")
-  method        String?       @map("method")
-  status        PaymentStatus @default(pending) @map("status")
-  transactionId String?       @map("transaction_id")
-  createdAt     DateTime      @default(now()) @map("created_at")
+  id              String        @id @default(uuid()) @map("id")
+  orderId         String        @map("order_id")
+  userId          String        @map("user_id")
+  amount          Decimal       @map("amount")
+  status          PaymentStatus @default(pending) @map("status")
+  transactionId   String?       @map("transaction_id")
+  paymentProvider String?       @map("payment_provider")
+  createdAt       DateTime      @default(now()) @map("created_at")
 
   // Relations
   order Order @relation(fields: [orderId], references: [id])

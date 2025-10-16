@@ -19,6 +19,7 @@ const router = require('./routes/index');
 const { sendMessage } = require('./controllers/chatbotController');
 const { generalLimiter } = require('./middleware/auth');
 const errorHandler = require('./middleware/errorHandler');
+const webhookRoutes = require('./webhooks');
 const app = express();
 app.use(express.static(path.join(__dirname, "../public")))
 // Rate limiting
@@ -97,7 +98,8 @@ app.use(requestLogger);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, swaggerOptions));
 
 // API routes
-app.use(`${config.API_PREFIX}/${config.API_VERSION}`, routes)
+app.use(`/api/v1`, routes);
+app.use('/webhooks', webhookRoutes);
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
