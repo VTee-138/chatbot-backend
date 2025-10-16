@@ -41,15 +41,16 @@ model SsoAccount {
 }
 
 model Plan {
-  id             String         @id @default(uuid())
-  name           String
-  price          Float
-  limits         Json
-  type           PlanType
-  createdAt      DateTime       @default(now()) @map("created_at")
-  updatedAt      DateTime?      @updatedAt @map("updated_at")
-  subscriptions  Subscription[]
-  subscriptionId String
+  id            String         @id @default(uuid())
+  name          String
+  price         Int
+  limits        Json
+  type          PlanType
+  durationValue Int            @map("duration_value") // số lượng (vd: 1, 3, 12)
+  durationUnit  DurationUnit   @map("duration_unit") // kiểu thời gian (day, month, year)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime?      @updatedAt @map("updated_at")
+  subscriptions Subscription[]
 
   @@map("plans")
 }
@@ -60,17 +61,18 @@ model Group {
   ownerId           String    @map("owner_id")
   autoAssignEnabled Boolean   @default(false) @map("auto_assign_enabled")
   aiModelCredits    Float     @default(0) @map("ai_model_credits")
+  isActive          Boolean   @default(true) @map("is_active") // nhóm có đang hoạt động hay không (bị khoá thì ko hoạt động)
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime? @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
 
-  aiUsageLog     AiUsageLog[]
-  channels       Channel[]
-  conversations  Conversation[]
-  customers      Customer[]
-  groupMembers   GroupMember[]
-  users          User           @relation(fields: [ownerId], references: [id])
-  subscriptions  Subscription[]
-  subscriptionId String
+  aiUsageLog    AiUsageLog[]
+  channels      Channel[]
+  conversations Conversation[]
+  customers     Customer[]
+  groupMembers  GroupMember[]
+  users         User           @relation(fields: [ownerId], references: [id])
+  subscriptions Subscription[]
 
   @@unique([name, ownerId])
   @@map("groups")
@@ -94,13 +96,14 @@ model GroupMember {
 }
 
 model Subscription {
-  id        String             @id @default(uuid())
-  groupId   String             @map("group_id")
-  planId    String             @map("plan_id")
-  status    SubscriptionStatus @default(pending)
-  expireAt  DateTime?          @map("expire_at")
-  createdAt DateTime           @default(now()) @map("created_at")
-  updatedAt DateTime?          @updatedAt @map("updated_at")
+  id        String    @id @default(uuid())
+  groupId   String    @map("group_id")
+  planId    String    @map("plan_id")
+  isActive  Boolean   @default(true) @map("is_active")
+  startedAt DateTime? @map("start_at")
+  expireAt  DateTime? @map("expire_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime? @updatedAt @map("updated_at")
 
   groups Group @relation(fields: [groupId], references: [id])
   plans  Plan  @relation(fields: [planId], references: [id])
@@ -321,13 +324,6 @@ enum InvitationStatus {
   declined
 }
 
-enum SubscriptionStatus {
-  active
-  expired
-  cancelled
-  pending //khả năng kh còn cần cái này nữa
-}
-
 enum MessageType {
   text
   image
@@ -382,5 +378,11 @@ enum OrderType {
   group_creation // tạo group mới (sau khi thanh toán mới thực sự insert group)
   plan_renewal // gia hạn plan hiện tại của group
   credit_purchase // mua thêm credit cho AI model
-  plan_change //upgrade hoặc downgrade 1 plan nào đó
+  plan_purchase //mua 1 plan nào đó
+}
+
+enum DurationUnit {
+  day
+  month
+  year
 }
