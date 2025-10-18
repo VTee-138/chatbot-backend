@@ -33,6 +33,14 @@ class Constants {
         _UNAUTHORIZED: "User not available",
         _TOKEN_INVALID: "Token invalid"
     }
+    static ZALO = {
+        GET_TOKEN_URL: 'https://oauth.zaloapp.com/v4/oa/access_token'
+    }
+    static STANDARD_AGE_FOR_TOKEN = 5 * 60 * 60;
+    static LOCK_KEY_PREFIX = 'lock:zalo_refresh:';
+    static LOCK_TTL_MS = 8_000; // TTL khóa (ms)
+    static POLL_INTERVAL_MS = 300; // khi không có lock, chờ poll DB
+    static POLL_MAX_ATTEMPTS = 8; // tối đa chờ
 }
 /**
  * Custom Error class dùng để chuẩn hóa lỗi trong hệ thống.

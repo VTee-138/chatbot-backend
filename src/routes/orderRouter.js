@@ -5,19 +5,19 @@ const OrderValidators = require("../validators/orderValidators");
 const { schemaValidate } = require("../middleware/validate");
 
 router.post(
-    "/api/v1/orders/plan-renewal",
+    "/plan-renewal",
     schemaValidate(OrderValidators.PlanRenewalSchema, "body"),
     OrderController.createPlanRenewalOrder
 );
 
 router.post(
-    "/api/v1/orders/plan-purchase",
+    "/plan-purchase",
     schemaValidate(OrderValidators.PlanPurchaseSchema, "body"),
     OrderController.createPlanPurchaseOrder
 );
 
 router.post(
-    "/api/v1/orders/group-creation",
+    "/group-creation",
     schemaValidate(OrderValidators.GroupCreationSchema, "body"),
     OrderController.createGroupCreationOrder
 );

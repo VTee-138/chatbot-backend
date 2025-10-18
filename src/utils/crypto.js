@@ -83,12 +83,12 @@ const createShield = (length) => {
 
 const convertToAscii = (str) => {
   return str
-    .normalize("NFD")                
-    .replace(/[\u0300-\u036f]/g, "")  
-    .replace(/đ/g, "d")              
-    .replace(/Đ/g, "D")            
-    .replace(/\s+/g, "")            
-    .toLowerCase();                   
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .replace(/\s+/g, "")
+    .toLowerCase();
 }
 module.exports = {
   hashPassword,
