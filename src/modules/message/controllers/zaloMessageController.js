@@ -142,12 +142,8 @@ class ZaloMessageController {
             const messageData = message || event?.message;
 
             if (!userId) {
-                console.log('⚠️ No sender ID in webhook');
                 return;
             }
-
-            console.log('📥 Processing incoming message from user:', userId);
-
             // Find or create customer
             let customer = await prisma.customers.findFirst({
                 where: {

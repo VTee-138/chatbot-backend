@@ -1,4 +1,5 @@
 const axios = require('axios');
+const conversationModels = require('../../../message/models/conversationModels');
 
 const ZALO_GET_LIST_USER_URL = 'https://openapi.zalo.me/v3.0/oa/user/getlist';
 const MAX_USER_COUNT = 50;
@@ -125,37 +126,29 @@ class ZaloAPIService {
         const allMessages = [];
         // Duyệt từng user, tạo conversation nếu chưa có
         for (const user of users) {
-
+            let providerCusomerId = user.user_id
             // Kiểm tra conversation đã tồn tại chưa
             let conversation = await prisma.conversation.findFirst({
                 where: {
                     provider: 'zalo',
                     providerId,
-                    providerCusomerId: user.user_id,
+                    providerCusomerId,
                 },
             });
 
             // Nếu chưa tồn tại thì tạo mới
             if (!conversation) {
-                conversation = await prisma.conversation.create({
-                    data: {
-                        provider: 'zalo',
-                        providerId,
-                        providerCusomerId: providerCustomerId,
-                        providerConversationId: `zalo_user_id_${providerCustomerId}`,
-                        customer: { create: {} },
-                    },
-                });
+                conversation = await conversationModels.createZaloConversation(providerId, providerCusomerId)
             }
 
             // Lấy tin nhắn của user này
             //khi lấy đã tự động chống trùng r nhen
-            const messages = await this.getUserMessages(accessToken, providerCustomerId);
+            const messages = await this.getUserMessages(accessToken, providerCusomerId);
             if (!messages.length) continue;
             //  Chuẩn hóa tin nhắn theo schema Message
             const messageData = messages.map((msg) => ({
                 conversationId: conversation.id,
-                senderId: msg.src === 1 ? providerCustomerId : providerId,// 0 là từ OA gửi, 1 là khách gửi
+                senderId: msg.src === 1 ? providerCusomerId : providerId,// 0 là từ OA gửi, 1 là khách gửi
                 senderType: msg.src === 1 ? null : 'human', // chỉ đặt type cho tin nhắn gửi từ OA
                 src: msg.src,
                 content: msg.message || '',
