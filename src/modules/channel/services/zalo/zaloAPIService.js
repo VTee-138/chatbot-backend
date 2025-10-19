@@ -157,10 +157,12 @@ class ZaloAPIService {
                 conversationId: conversation.id,
                 senderId: msg.src === 1 ? providerCustomerId : providerId,// 0 là từ OA gửi, 1 là khách gửi
                 senderType: msg.src === 1 ? null : 'human', // chỉ đặt type cho tin nhắn gửi từ OA
+                src: msg.src,
                 content: msg.message || '',
                 messageType: msg.type || 'text',
                 createdAt: new Date(msg.time),
             }));
+            //thiêu attachment (....)
 
             allMessages.push(...messageData);
         }

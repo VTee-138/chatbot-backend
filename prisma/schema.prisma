@@ -212,7 +212,8 @@ model Message {
   id                 String        @id @default(uuid())
   conversationId     String        @map("conversation_id")
   senderId           String?       @map("sender_id")
-  senderType         SenderType?   @map("sender_type")
+  src                Int           @default(0) //0 là gửi từ app đến customer, 1 là ngược lại
+  senderType         SenderType    @map("sender_type")
   repliedToMessageId String?       @map("replied_to_message_id")
   providerMessageId  String        @map("provider_message_id")
   content            String        @db.Text
