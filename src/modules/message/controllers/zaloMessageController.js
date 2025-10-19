@@ -9,15 +9,7 @@ class ZaloMessageController {
         this.handleZaloWebhook = this.handleZaloWebhook.bind(this);
         this.handleIncomingMessage = this.handleIncomingMessage.bind(this);
         this.handleOutgoingMessage = this.handleOutgoingMessage.bind(this);
-        this.getZaloAccessToken = this.getZaloAccessToken.bind(this);
-        this.refreshTokenByOaId = this.refreshTokenByOaId.bind(this);
-        this.refreshAccessToken = this.refreshAccessToken.bind(this);
         this.sendZaloMessage = this.sendZaloMessage.bind(this);
-        this.getZaloUsers = this.getZaloUsers.bind(this);
-        this.getUserDetail = this.getUserDetail.bind(this);
-        this.getConversations = this.getConversations.bind(this);
-        this.getAllConversations = this.getAllConversations.bind(this);
-        this.listRecentChat = this.listRecentChat.bind(this);
         this.sendMessage = this.sendMessage.bind(this);
         this.sendZaloImage = this.sendZaloImage.bind(this);
         this.sendZaloFile = this.sendZaloFile.bind(this);
