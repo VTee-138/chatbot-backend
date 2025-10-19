@@ -45,7 +45,7 @@ class ZaloOauthController {
     async handleZaloCallback(req, res, next) {
         try {
             const { code, state, oa_id } = req.query;
-            if (!code || !state) {
+            if (!code || !state || !oa_id) {
                 throw new ErrorResponse('Invalid or expired state', Constants.BAD_REQUEST)
             }
             const channelRecord = await ZaloOauthService.createZaloChannel(code, state, oa_id);
