@@ -1,10 +1,10 @@
 // services/zaloChannelService.js
 const axios = require('axios');
-const prisma = require('../../../config/database')
-const RedisUtility = require("../../../utils/redisUtils");
-const DatetimeUtility = require('../../../utils/datetimeUtils');
-const { ErrorResponse, Constants } = require('../../../utils/constant');
-const PKCEUtility = require('../../../utils/pkceUtils');
+const prisma = require('../../../../config/database')
+const RedisUtility = require("../../../../utils/redisUtils");
+const DatetimeUtility = require('../../../../utils/datetimeUtils');
+const { ErrorResponse, Constants } = require('../../../../utils/constant');
+const PKCEUtility = require('../../../../utils/pkceUtils');
 
 class ZaloOauthService {
     /**
@@ -144,14 +144,10 @@ class ZaloOauthService {
         const now = new Date();
         let tokenIsValid = false;
         if (channel.accessToken) {
-            // if updatedAt exists, check age; otherwise assume valid (best effort)
-            if (channel.updatedAt) {
-                const curAge = (now - channel.updatedAt) / 1000;
-                tokenIsValid = curAge < Constants.STANDARD_AGE_FOR_TOKEN;
-            } else {
-                const curAge = (now - channel.createdAt) / 1000;
-                tokenIsValid = curAge < Constants.STANDARD_AGE_FOR_TOKEN;
-            }
+            tokenIsValid = now < channel?.expireAt;
+        }
+        if (!channel?.refreshToken) {
+            throw new ErrorResponse(`Vui lòng thêm lại kênh ${channel?.name}`, Constants.BAD_REQUEST)
         }
 
         if (tokenIsValid) return channel.accessToken;
@@ -210,7 +206,7 @@ class ZaloOauthService {
         const oaInfo = oaInfoResponse.data.data;
         return oaInfo.name || `Zalo OA ${oa_id}`;
     }
-    async handleZaloCallback(code, state, oa_id) {
+    async createZaloChannel(code, state, oa_id) {
         // Retrieve PKCE context
         const pkceContext = await PKCEUtility.getCodeVerifier(state);
         if (!pkceContext) {

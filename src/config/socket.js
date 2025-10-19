@@ -64,35 +64,35 @@ function initSocket(httpServer) {
     transports: ['websocket', 'polling']
   });
 
-  // Authentication middleware
-  io.use(async (socket, next) => {
-    try {
-      const token = socket.handshake.auth.token;
+  // // Authentication middleware
+  // io.use(async (socket, next) => {
+  //   try {
+  //     const token = socket.handshake.auth.token;
 
-      SocketLogger.info('auth', `Authentication attempt from ${socket.id}`);
+  //     SocketLogger.info('auth', `Authentication attempt from ${socket.id}`);
 
-      // ✅ Validate token exists and is a string
-      if (!token || typeof token !== 'string') {
-        SocketLogger.error('auth', `Invalid token format: ${typeof token}`);
-        return next(new Error('Authentication error: No valid token provided'));
-      }
+  //     // ✅ Validate token exists and is a string
+  //     if (!token || typeof token !== 'string') {
+  //       SocketLogger.error('auth', `Invalid token format: ${typeof token}`);
+  //       return next(new Error('Authentication error: No valid token provided'));
+  //     }
 
-      // Verify JWT token
-      const decoded = jwt.verify(token, config.JWT_SECRET);
-      socket.userId = decoded.userId;
-      socket.userEmail = decoded.email;
+  //     // Verify JWT token
+  //     const decoded = jwt.verify(token, config.JWT_SECRET);
+  //     socket.userId = decoded.userId;
+  //     socket.userEmail = decoded.email;
 
-      SocketLogger.info('auth', `User authenticated successfully`, {
-        socketId: socket.id,
-        userId: socket.userId,
-        email: socket.userEmail
-      });
-      next();
-    } catch (error) {
-      SocketLogger.error('auth', `Token verification failed`, error);
-      next(new Error('Authentication error: Invalid token'));
-    }
-  });
+  //     SocketLogger.info('auth', `User authenticated successfully`, {
+  //       socketId: socket.id,
+  //       userId: socket.userId,
+  //       email: socket.userEmail
+  //     });
+  //     next();
+  //   } catch (error) {
+  //     SocketLogger.error('auth', `Token verification failed`, error);
+  //     next(new Error('Authentication error: Invalid token'));
+  //   }
+  // });
 
   // Connection handler
   io.on('connection', (socket) => {

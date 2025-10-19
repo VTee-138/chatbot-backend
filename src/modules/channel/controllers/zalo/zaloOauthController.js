@@ -1,8 +1,9 @@
-const prisma = require('../../../config/database')
+const prisma = require('../../../../config/database')
 const axios = require('axios');
-const PKCEUtility = require('../../../utils/pkceUtils');
-const { ErrorResponse, Constants } = require('../../../utils/constant');
-const ZaloOauthService = require('../services/zaloOauthService');
+const PKCEUtility = require('../../../../utils/pkceUtils');
+const { ErrorResponse, Constants } = require('../../../../utils/constant');
+const ZaloOauthService = require('../../services/zalo/zaloOauthService');
+const zaloAPIService = require('../../services/zalo/zaloAPIService');
 class ZaloOauthController {
     async initiateZaloOAuth(req, res, next) {
         try {
@@ -47,11 +48,11 @@ class ZaloOauthController {
             if (!code || !state) {
                 throw new ErrorResponse('Invalid or expired state', Constants.BAD_REQUEST)
             }
-
-            const channelRecord = await ZaloOauthService.handleZaloCallback(code, state, oa_id)
+            const channelRecord = await ZaloOauthService.createZaloChannel(code, state, oa_id);
+            await zaloAPIService.syncZaloConversations(channelRecord.accessToken, channelRecord.providerId)
             return res.status(200).json({
                 success: true,
-                data: channelRecord
+                data: 'success'
             });
 
         } catch (error) {

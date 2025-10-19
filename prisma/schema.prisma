@@ -32,9 +32,11 @@ model User {
 
 model SsoAccount {
   provider   String
-  userId     String @map("user_id")
-  providerId String @map("provider_id")
-  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String    @map("user_id")
+  providerId String    @map("provider_id")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime? @updatedAt @map("updated_at")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([provider, providerId])
   @@map("sso_accounts")
@@ -68,7 +70,6 @@ model Group {
 
   aiUsageLog    AiUsageLog[]
   channels      Channel[]
-  conversations Conversation[]
   customers     Customer[]
   groupMembers  GroupMember[]
   users         User           @relation(fields: [ownerId], references: [id])
@@ -129,6 +130,7 @@ model AiUsageLog {
   totalTokens    Int          @map("total_tokens")
   cost           Float
   createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime?    @updatedAt @map("updated_at")
   groupId        String       @map("group_id")
   conversationId String       @map("conversation_id")
   conversations  Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -150,8 +152,7 @@ model Channel {
   updatedAt    DateTime?       @updatedAt @map("updated_at")
   status       ChannelStatus   @default(active)
 
-  groups        Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  conversations Conversation[]
+  groups Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerId, groupId])
   @@index([groupId])
@@ -159,26 +160,24 @@ model Channel {
 }
 
 model Conversation {
-  id                     String       @id @default(uuid())
-  groupId                String       @map("group_id")
-  channelId              String       @map("channel_id")
-  customerId             String       @map("customer_id")
-  assigneeId             String?      @map("assignee_id")
-  createdAt              DateTime     @default(now()) @map("created_at")
-  updatedAt              DateTime?    @updatedAt @map("updated_at")
-  chatbotEnabled         Boolean      @default(true) @map("chatbot_enabled")
-  providerConversationId String       @unique @map("provider_conversation_id")
-  lastMessageAt          DateTime     @default(now()) @map("last_message_at")
-  providerAdId           String?      @map("provider_ad_id")
+  id                     String          @id @default(uuid())
+  customerId             String          @unique @map("customer_id")
+  assigneeId             String?         @map("assignee_id")
+  chatbotEnabled         Boolean         @default(true) @map("chatbot_enabled")
+  providerConversationId String?         @unique @map("provider_conversation_id") //facebook trả về conversationId
+  lastMessageAt          DateTime        @default(now()) @map("last_message_at")
+  providerAdId           String?         @map("provider_ad_id") //chịu ?
+  providerCusomerId      String?         @map("provider_customer_id") //id của khách hàng trong provider đó
+  provider               ChannelProvider //provider thuộc loại gì (zalo,fb,...)
+  providerId             String          @map("provider_id") //id của bussiness trong provider đó
+  createdAt              DateTime        @default(now()) @map("created_at")
+  updatedAt              DateTime?       @updatedAt @map("updated_at")
   aiUsageLog             AiUsageLog[]
-  groupMembers           GroupMember? @relation(fields: [assigneeId], references: [id])
-  channels               Channel      @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  customers              Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  groups                 Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupMembers           GroupMember?    @relation(fields: [assigneeId], references: [id])
+  customers              Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
   messages               Message[]
 
   @@index([assigneeId])
-  @@index([groupId])
   @@map("conversations")
 }
 
@@ -199,9 +198,9 @@ model Customer {
   updatedAt      DateTime? @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
-  conversations Conversation[]
-  groups        Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  tags          Tag?           @relation(fields: [tagId], references: [id])
+  conversations Conversation?
+  groups        Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  tags          Tag?          @relation(fields: [tagId], references: [id])
 
   @@index([groupId])
   @@index([email])
@@ -210,17 +209,19 @@ model Customer {
 }
 
 model Message {
-  id             String        @id @default(uuid())
-  conversationId String        @map("conversation_id")
-  senderId       String?       @map("sender_id")
-  senderType     SenderType    @default(customer) @map("sender_type")
-  content        String        @db.Text
-  messageType    MessageType   @default(text) @map("message_type")
-  status         MessageStatus @default(sent)
-  deliveredAt    DateTime?     @map("delivered_at")
-  readAt         DateTime?     @map("read_at")
-  createdAt      DateTime      @default(now()) @map("created_at")
-  updatedAt      DateTime?     @updatedAt @map("updated_at")
+  id                 String        @id @default(uuid())
+  conversationId     String        @map("conversation_id")
+  senderId           String?       @map("sender_id")
+  senderType         SenderType?   @map("sender_type")
+  repliedToMessageId String?       @map("replied_to_message_id")
+  providerMessageId  String        @map("provider_message_id")
+  content            String        @db.Text
+  messageType        MessageType   @default(text) @map("message_type")
+  status             MessageStatus @default(sent)
+  deliveredAt        DateTime?     @map("delivered_at")
+  readAt             DateTime?     @map("read_at")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime?     @updatedAt @map("updated_at")
 
   conversations       Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   message_attachments MessageAttachment[]
@@ -248,9 +249,9 @@ model MessageAttachment {
   providerFileId   String? @map("provider_file_id")
   providerMetadata Json?   @map("provider_metadata")
 
-  createdAt DateTime @default(now()) @map("created_at")
-
-  messages Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime? @updatedAt @map("updated_at")
+  messages  Message   @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@index([messageId])
   @@index([attachmentType])
@@ -283,10 +284,10 @@ model Payment {
   transactionId   String?       @map("transaction_id")
   paymentProvider String?       @map("payment_provider")
   createdAt       DateTime      @default(now()) @map("created_at")
-
+  updatedAt       DateTime?     @updatedAt @map("updated_at")
   // Relations
-  order Order @relation(fields: [orderId], references: [id])
-  user  User  @relation(fields: [userId], references: [id])
+  order           Order         @relation(fields: [orderId], references: [id])
+  user            User          @relation(fields: [userId], references: [id])
 }
 
 enum Role {
@@ -334,7 +335,7 @@ enum MessageType {
 }
 
 enum SenderType {
-  customer
+  human
   bot
 }
 
