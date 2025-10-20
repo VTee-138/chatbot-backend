@@ -3,7 +3,9 @@ const router = express.Router();
 const GroupController = require("../controllers/groupsController");
 const { schemaValidate } = require("../middleware/validate");
 const groupValidator = require("../validators/groupsValidators");
+const { authenticate } = require("../middleware/auth");
 
+router.use(authenticate);
 // Invitations
 router.post(
   "/invitations/accept",

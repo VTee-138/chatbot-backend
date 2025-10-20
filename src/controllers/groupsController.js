@@ -3,7 +3,7 @@ const GroupsService = require("../services/groupsService");
 class GroupController {
     async acceptInvitation(req, res, next) {
         try {
-            const result = await GroupsService.acceptInvitation(req.id, req.body.groupId);
+            const result = await GroupsService.acceptInvitation(req.user.id, req.body.groupId);
             res.status(200).json(result);
         } catch (error) {
             next(error);
@@ -12,7 +12,7 @@ class GroupController {
 
     async declineInvitation(req, res, next) {
         try {
-            const result = await GroupsService.declineInvitation(req.id, req.body.groupId);
+            const result = await GroupsService.declineInvitation(req.user.id, req.body.groupId);
             res.status(200).json(result);
         } catch (error) {
             next(error);
@@ -21,7 +21,7 @@ class GroupController {
 
     async getMyInvitations(req, res, next) {
         try {
-            const result = await GroupsService.getMyInvitations(req.id);
+            const result = await GroupsService.getMyInvitations(req.user.id);
             res.status(200).json(result);
         } catch (error) {
             next(error);
@@ -30,7 +30,7 @@ class GroupController {
 
     async getMyPendingInvitations(req, res, next) {
         try {
-            const result = await GroupsService.getMyPendingInvitations(req.id);
+            const result = await GroupsService.getMyPendingInvitations(req.user.id);
             res.status(200).json(result);
         } catch (error) {
             next(error);
@@ -39,7 +39,7 @@ class GroupController {
 
     async getGroupInformation(req, res, next) {
         try {
-            const result = await GroupsService.getGroupInformation(req.params.id, req.id);
+            const result = await GroupsService.getGroupInformation(req.params.id, req.user.id);
             res.status(200).json(result);
         } catch (error) {
             next(error);
@@ -48,7 +48,7 @@ class GroupController {
 
     async getGroupMembers(req, res, next) {
         try {
-            const result = await GroupsService.getGroupMembers(req.params.id, req.id);
+            const result = await GroupsService.getGroupMembers(req.params.id, req.user.id);
             res.status(200).json(result);
         } catch (error) {
             next(error);
@@ -57,7 +57,7 @@ class GroupController {
 
     async updateRole(req, res, next) {
         try {
-            const result = await GroupsService.updateRole(req.id, req.body.groupId, req.body.newRole);
+            const result = await GroupsService.updateRole(req.user.id, req.body.groupId, req.body.newRole);
             res.status(200).json(result);
         } catch (error) {
             next(error);
@@ -66,7 +66,7 @@ class GroupController {
 
     async deleteMember(req, res, next) {
         try {
-            const result = await GroupsService.deleteMember(req.id, req.body.groupId);
+            const result = await GroupsService.deleteMember(req.user.id, req.body.groupId);
             res.status(200).json(result);
         } catch (error) {
             next(error);
@@ -74,7 +74,7 @@ class GroupController {
     }
     async getMyGroups(req, res, next) {
         try {
-            const userId = req.id;
+            const userId = req.user.id;
             const groups = await GroupsService.getGroupsByUser(userId);
             res.json({ success: true, data: groups });
         } catch (error) {

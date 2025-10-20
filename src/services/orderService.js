@@ -6,7 +6,7 @@ class OrderService {
     static accountNo = "0987654321"
     static async createPlanRenewalOrder(req) {
         const { name, planId, groupId } = req.body;
-        const userId = req.id;
+        const userId = req.user.id;
 
         const plan = await prisma.plans.findUnique({ where: { id: planId } });
         if (!plan) throw new ErrorResponse("Không tìm thấy plan", Constants.NOT_FOUND);
@@ -33,7 +33,7 @@ class OrderService {
 
     static async createPlanPurchaseOrder(req) {
         const { name, planId, groupId } = req.body;
-        const userId = req.id;
+        const userId = req.user.id;
 
         const plan = await prisma.plans.findUnique({ where: { id: planId } });
         if (!plan) throw new ErrorResponse("Không tìm thấy plan", Constants.NOT_FOUND);
@@ -60,7 +60,7 @@ class OrderService {
 
     static async createGroupCreationOrder(req) {
         const { name, planId } = req.body;
-        const userId = req.id;
+        const userId = req.user.id;
 
         const plan = await prisma.plans.findUnique({ where: { id: planId } });
         if (!plan) throw new ErrorResponse("Không tìm thấy plan", Constants.NOT_FOUND);
