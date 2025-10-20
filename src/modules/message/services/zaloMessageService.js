@@ -15,11 +15,11 @@ class conversationService {
             where: { id: conversationId },
         });
 
-        if (!conversation || !conversation.providerCusomerId) {
-            throw new ErrorResponse('Không tìm thấy hội thoại hoặc providerCusomerId không tồn tại', 400);
+        if (!conversation || !conversation.providerCustomerId) {
+            throw new ErrorResponse('Không tìm thấy hội thoại hoặc providerCustomerId không tồn tại', 400);
         }
 
-        const userId = conversation.providerCusomerId;
+        const userId = conversation.providerCustomerId;
 
         const url = `https://openapi.zalo.me/v2.0/oa/conversation?data=${encodeURIComponent(
             JSON.stringify({

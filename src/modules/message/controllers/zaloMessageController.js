@@ -59,24 +59,24 @@ class ZaloMessageController {
 
             // Determine OA_ID based on event type
             let oa_id;
-            let providerCusomerId;
+            let providerCustomerId;
             if (event_name?.startsWith('oa_send_')) {
                 // When OA sends message, OA is in sender field
                 oa_id = payload.sender?.id;
-                providerCusomerId = payload.recipient?.id;
+                providerCustomerId = payload.recipient?.id;
             } else if (event_name?.startsWith('user_send_')) {
                 // When user sends message, OA is in recipient field
                 oa_id = payload.recipient?.id;
-                providerCusomerId = payload.sender?.id;
+                providerCustomerId = payload.sender?.id;
             } else if (event_name === 'user_received_message') {
                 // Delivery confirmation - OA is in sender field
                 oa_id = payload.sender?.id;
-                providerCusomerId = payload.recipient?.id;
+                providerCustomerId = payload.recipient?.id;
             } else {
                 return;
                 // Fallback for other events (follow, unfollow, etc.)
                 oa_id = payload.oa_id || payload.sender?.id || payload.recipient?.id;
-                providerCusomerId = null;
+                providerCustomerId = null;
             }
 
             console.log('📋 Parsed webhook data:', {
@@ -111,7 +111,7 @@ class ZaloMessageController {
                 case 'user_send_video':
                     console.log('📨 Handling incoming message:', event_name);
 
-                    await this.handleIncomingMessage(oa_id, providerCusomerId, event_name.replace('user_send_', ''), payload);
+                    await this.handleIncomingMessage(oa_id, providerCustomerId, event_name.replace('user_send_', ''), payload);
                     break;
 
                 case 'oa_send_text':
@@ -120,7 +120,7 @@ class ZaloMessageController {
                 case 'oa_send_file':
                 case 'oa_send_list':
                     console.log('📤 Handling outgoing message:', event_name);
-                    await this.handleOutgoingMessage(oa_id, providerCusomerId, event_name.replace('oa_send', ''), payload);
+                    await this.handleOutgoingMessage(oa_id, providerCustomerId, event_name.replace('oa_send', ''), payload);
                     break;
 
                 case 'user_received_message':
@@ -150,7 +150,7 @@ class ZaloMessageController {
     /**
      * Handle incoming message from user
      */
-    async handleIncomingMessage(providerId, providerCusomerId, messageType, payload) {
+    async handleIncomingMessage(providerId, providerCustomerId, messageType, payload) {
         try {
             // Parse Zalo webhook payload
             const { sender, recipient, message, timestamp } = payload;
@@ -160,7 +160,7 @@ class ZaloMessageController {
             // Find or create conversation
             let conversation = await prisma.conversations.findFirst({
                 where: {
-                    providerCusomerId,
+                    providerCustomerId,
                     providerId,
                     provider: 'zalo'
                 },
@@ -172,8 +172,8 @@ class ZaloMessageController {
                 // Convert timestamp to Date properly
                 let randomChannel = await channelModel.getFirstChannel('zalo', providerId);
                 let accessToken = zaloOauthService.getValidAccessToken(randomChannel.id, this.appId, this.appSecret)
-                let customerData = await zaloAPIService.getZaloUserDetail(accessToken, providerCusomerId)
-                conversation = await conversationModels.createZaloConversation(providerId, providerCusomerId, messageSentDate, customerData)
+                let customerData = await zaloAPIService.getZaloUserDetail(accessToken, providerCustomerId)
+                conversation = await conversationModels.createZaloConversation(providerId, providerCustomerId, messageSentDate, customerData)
 
                 // // Emit new conversation to group
                 // const { emitNewConversation } = require('../config/socket');
@@ -197,8 +197,8 @@ class ZaloMessageController {
             if (!checkMessage) {
                 await prisma.message.create({
                     conversationId: conversation.id,
-                    senderId: providerCusomerId,// 0 là từ OA gửi, 1 là khách gửi
-                    senderType: null,  // chỉ đặt type cho tin nhắn gửi từ OA
+                    senderId: providerCustomerId,// 0 là từ OA gửi, 1 là khách gửi
+                    senderType: 'human',  // chỉ đặt type cho tin nhắn gửi từ OA
                     src: 1,
                     content: message.text || '',
                     messageType,
@@ -222,7 +222,7 @@ class ZaloMessageController {
                     messageId: payload.message.msg_id,
                     src: 1, // 1 = from user (customer), 0 = from OA
                     sentTime: messageSentDate.getTime(),
-                    fromId: providerCusomerId,
+                    fromId: providerCustomerId,
                     fromDisplayName: conversation.customer.fullName || 'Unknown User',
                     fromAvatar: conversation.customer.avatarUrl || '',
                     toId: providerId, // OA ID
@@ -281,7 +281,7 @@ class ZaloMessageController {
     /**
      * Handle outgoing message from OA
      */
-    async handleOutgoingMessage(providerId, providerCusomerId, messageType, payload) {
+    async handleOutgoingMessage(providerId, providerCustomerId, messageType, payload) {
         try {
             // Parse Zalo webhook payload
             const { sender, recipient, message, timestamp } = payload;
@@ -291,7 +291,7 @@ class ZaloMessageController {
             // Find or create conversation
             let conversation = await prisma.conversations.findFirst({
                 where: {
-                    providerCusomerId,
+                    providerCustomerId,
                     providerId,
                     provider: 'zalo'
                 },
@@ -303,8 +303,8 @@ class ZaloMessageController {
                 // Convert timestamp to Date properly
                 let randomChannel = await channelModel.getFirstChannel('zalo', providerId);
                 let accessToken = zaloOauthService.getValidAccessToken(randomChannel.id, this.appId, this.appSecret)
-                let customerData = await zaloAPIService.getZaloUserDetail(accessToken, providerCusomerId)
-                conversation = await conversationModels.createZaloConversation(providerId, providerCusomerId, messageSentDate, customerData)
+                let customerData = await zaloAPIService.getZaloUserDetail(accessToken, providerCustomerId)
+                conversation = await conversationModels.createZaloConversation(providerId, providerCustomerId, messageSentDate, customerData)
 
                 // // Emit new conversation to group
                 // const { emitNewConversation } = require('../config/socket');
@@ -357,7 +357,7 @@ class ZaloMessageController {
                     fromId: providerId,
                     fromDisplayName: null,
                     fromAvatar: null,
-                    toId: providerCusomerId, // OA ID
+                    toId: providerCustomerId, // OA ID
                     toDisplayName: conversation.customer.fullName || 'Unknown User',
                     toAvatar: conversation.customer.avatarUrl || '',
                     type: messageType,

@@ -167,7 +167,7 @@ model Conversation {
   providerConversationId String?         @unique @map("provider_conversation_id") //facebook trả về conversationId
   lastMessageAt          DateTime        @default(now()) @map("last_message_at")
   providerAdId           String?         @map("provider_ad_id") //chịu ?
-  providerCusomerId      String?         @map("provider_customer_id") //id của khách hàng trong provider đó
+  providerCustomerId     String?         @map("provider_customer_id") //id của khách hàng trong provider đó
   provider               ChannelProvider //provider thuộc loại gì (zalo,fb,...)
   providerId             String          @map("provider_id") //id của bussiness trong provider đó
   createdAt              DateTime        @default(now()) @map("created_at")
@@ -334,6 +334,8 @@ enum MessageType {
   audio
   video
   sticker
+  gif
+  location
 }
 
 enum SenderType {

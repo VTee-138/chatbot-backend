@@ -1,7 +1,21 @@
 const axios = require('axios');
 const conversationModels = require('../../../message/models/conversationModels');
 const prisma = require('../../../../config/database');
+const { MessageType } = require('@prisma/client');
 
+const toMessageType = (zaloType) => {
+    switch (zaloType) {
+        case 'text': return MessageType.text;
+        case 'image': return MessageType.image;
+        case 'file': return MessageType.file;
+        case 'audio': return MessageType.audio;
+        case 'video': return MessageType.video;
+        case 'sticker': return MessageType.sticker;
+        case 'gif': return MessageType.gif;
+        case 'location': return MessageType.location;
+        default: return MessageType.text; // fallback
+    }
+};
 class ZaloAPIService {
     /**
      * Lấy toàn bộ user trong vòng 30 ngày qua (bao gồm cả hôm nay)
@@ -12,7 +26,7 @@ class ZaloAPIService {
         const MAX_USER_COUNT = 50;
         const users = [];
         let offset = 0;
-
+        //tim follower OA trong 30 truoc
         while (true) {
             const data = {
                 offset,
@@ -39,8 +53,36 @@ class ZaloAPIService {
             offset += MAX_USER_COUNT;
             if (offset >= 10000) break; // Giới hạn của API
         }
+        //tim unfollower OA trong 30 ngay truoc
+        while (true) {
+            const data = {
+                offset,
+                count: MAX_USER_COUNT,
+                // Gộp L30D (30 ngày qua, không gồm hôm nay) + TODAY để lấy cả 31 ngày gần nhất
+                last_interaction_period: 'L30D',
+                is_follower: false,
+            };
+
+            const res = await axios.get(url, {
+                params: { data: JSON.stringify(data) },
+                headers: { access_token: accessToken },
+            });
+
+            const body = res.data;
+            if (body.error !== 0) throw new Error(body.message || 'Zalo API error');
+
+            const fetchedUsers = body.data?.users || [];
+            users.push(...fetchedUsers);
+
+            // Nếu ít hơn count thì dừng
+            if (fetchedUsers.length < MAX_USER_COUNT) break;
+
+            offset += MAX_USER_COUNT;
+            if (offset >= 10000) break; // Giới hạn của API
+        }
 
         // Tiếp tục gọi lần 2 cho "TODAY" để gộp user hôm nay
+        //da follow
         const todayRes = await axios.get(url, {
             params: {
                 data: JSON.stringify({
@@ -54,10 +96,24 @@ class ZaloAPIService {
         });
 
         const todayUsers = todayRes.data?.data?.users || [];
+        //chua follow
+        const todayResUnfollow = await axios.get(url, {
+            params: {
+                data: JSON.stringify({
+                    offset: 0,
+                    count: MAX_USER_COUNT,
+                    last_interaction_period: 'TODAY',
+                    is_follower: false,
+                }),
+            },
+            headers: { access_token: accessToken },
+        });
+
+        const todayUsersUnfollow = todayResUnfollow.data?.data?.users || [];
         // Hợp nhất, loại trùng
         const uniqueUsers = [
             ...new Map(
-                [...users, ...todayUsers].map((u) => [u.user_id, u])
+                [...users, ...todayUsers, ...todayUsersUnfollow].map((u) => [u.user_id, u])
             ).values(),
         ];
 
@@ -124,15 +180,16 @@ class ZaloAPIService {
         const users = await this.getAllUsers(accessToken);
         const allMessages = [];
         // Duyệt từng user, tạo conversation nếu chưa có
-        console.log(users)
+
         for (const user of users) {
-            let providerCusomerId = user.user_id
+            let providerCustomerId = user.user_id
+            let userDetail = await this.getZaloUserDetail(accessToken, providerCustomerId)
             // Kiểm tra conversation đã tồn tại chưa
             let conversation = await prisma.conversation.findFirst({
                 where: {
                     provider: 'zalo',
                     providerId,
-                    providerCusomerId,
+                    providerCustomerId,
                 },
             });
             if (conversation) {
@@ -141,27 +198,27 @@ class ZaloAPIService {
 
             // Lấy tin nhắn của user này
             //khi lấy đã tự động chống trùng r nhen
-            const messages = await this.getUserMessages(accessToken, providerCusomerId);
+            const messages = await this.getUserMessages(accessToken, providerCustomerId);
             const lastMessageAt = messages[0]?.time ? new Date(messages[0]?.time) : new Date();
             // Nếu chưa tồn tại thì tạo mới
-            conversation = await conversationModels.createZaloConversation(providerId, providerCusomerId, lastMessageAt)
+            conversation = await conversationModels.createZaloConversation(providerId, providerCustomerId, lastMessageAt, userDetail)
 
             if (!messages.length) continue;
             //  Chuẩn hóa tin nhắn theo schema Message
             const messageData = messages.map((msg) => ({
                 conversationId: conversation.id,
-                senderId: msg.src === 1 ? providerCusomerId : providerId,// 0 là từ OA gửi, 1 là khách gửi
-                senderType: msg.src === 1 ? null : 'human', // chỉ đặt type cho tin nhắn gửi từ OA
+                senderId: msg.src === 1 ? providerCustomerId : providerId,// 0 là từ OA gửi, 1 là khách gửi
+                senderType: msg.src === 1 ? 'human' : 'human', // chỉ đặt type cho tin nhắn gửi từ OA
                 src: msg.src,
                 content: msg.message || '',
-                messageType: msg.type || 'text',
+                messageType: toMessageType(msg.type),
+                providerMessageId: msg.message_id,
                 createdAt: new Date(msg.time),
             }));
             //thiêu attachment (....)
 
             allMessages.push(...messageData);
         }
-        console.log(allMessages)
 
         //cần phải dùng messageQueue để update kh bị mất data (update sau)
         const BATCH_SIZE = 500;
