@@ -55,11 +55,23 @@ app.use(helmet({
   },
 }));
 
-// CORS configuration
+// // CORS configuration
+// app.use(cors({
+//   origin: config.CORS_ORIGIN,
+//   credentials: true,
+//   optionsSuccessStatus: 200,
+// }));
+const allowedOrigins = ["https://tinz.vn", "https://admin.tinz.vn"];
+
 app.use(cors({
-  origin: config.CORS_ORIGIN,
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin) || !allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   credentials: true,
-  optionsSuccessStatus: 200,
 }));
 
 

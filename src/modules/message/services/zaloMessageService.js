@@ -1,43 +1,56 @@
 const prisma = require('../../../config/database'); // Đường dẫn tới Prisma instance
+const { ErrorResponse } = require('../../../utils/constant');
 
 class conversationService {
-    async getConversations({ provider, page, isRead }) {
-        let limit = 10;
-        const skip = (page - 1) * limit;
-
-        // Lọc điều kiện cơ bản
-        const where = {};
-        if (provider) where.provider = provider;
-
-        // Lấy danh sách conversation + message mới nhất
-        const conversations = await prisma.conversation.findMany({
-            where,
-            skip,
-            take: limit,
-            orderBy: { lastMessageAt: 'desc' },
-            include: {
-                messages: {
-                    orderBy: { createdAt: 'desc' },
-                    take: 1, // chỉ lấy message mới nhất
-                    select: { id: true, src: true, createdAt: true },
-                },
-            },
+    /**
+   * Lấy tin nhắn từ API Zalo
+   * @param {string} conversationId id của cuộc hội thoại trong DB
+   * @param {string} accessToken token của OA
+   * @param {number} offset vị trí bắt đầu (0 là mới nhất)
+   * @param {number} count số lượng tin nhắn (tối đa 10)
+   */
+    async getMessages(conversationId, accessToken, offset = 0, count = 10) {
+        // 🔹 Lấy conversation từ DB
+        const conversation = await prisma.conversation.findUnique({
+            where: { id: conversationId },
         });
 
-        const filteredConversations = isRead === undefined
-            ? conversations
-            : conversations.filter(c => {
-                const last = c.messages[0];
-                if (!last) return false;
-                return isRead ? last.src === 0 : last.src === 1;
-            });
+        if (!conversation || !conversation.providerCusomerId) {
+            throw new ErrorResponse('Không tìm thấy hội thoại hoặc providerCusomerId không tồn tại', 400);
+        }
 
-        // const total = await prisma.conversation.count({ where });
+        const userId = conversation.providerCusomerId;
 
+        const url = `https://openapi.zalo.me/v2.0/oa/conversation?data=${encodeURIComponent(
+            JSON.stringify({
+                user_id: Number(userId),
+                offset,
+                count,
+            })
+        )}`;
+
+        const response = await axios.get(url, {
+            headers: { access_token: accessToken },
+        });
+
+        // Kiểm tra lỗi từ Zalo
+        if (response.data.error !== 0) {
+            throw new Error(`Zalo API error: ${response.data.message}`);
+        }
+        const message = response.data.data;
         return {
-            page,
-            filteredConversations,
-        };
-    };
+            messageId: message.message_id,
+            src: message.src, // 1 = from user (customer), 0 = from OA
+            sentTime: message.time,
+            fromId: message.from_id,
+            fromDisplayName: message.from_display_name || 'Unknown User',
+            fromAvatar: message.from_avatar || '',
+            toId: message.to_id, // OA ID
+            toDisplayName: message.to_display_name,
+            toAvatar: to_avatar,
+            type: message.type,
+            message: message.message,
+        }
+    }
 }
 module.exports = new conversationService()

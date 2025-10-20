@@ -5,6 +5,7 @@ const zaloAPIService = require('../../channel/services/zalo/zaloAPIService');
 const channelModel = require('../../channel/models/channelModel');
 const zaloOauthService = require('../../channel/services/zalo/zaloOauthService');
 const { ErrorResponse } = require('../../../utils/constant');
+const zaloMessageService = require('../services/zaloMessageService');
 
 // Store for PKCE code verifiers (in production, use Redis)
 const pkceStore = new Map();
@@ -595,7 +596,7 @@ class ZaloMessageController {
      */
     async sendZaloMessage(req, res, next) {
         try {
-            const { groupId, providerId } = req.body
+            const { groupId, providerId, message } = req.body
             //@todo validate quyền của user sau 
             //authoriza lun
 
@@ -942,6 +943,35 @@ class ZaloMessageController {
                 success: false,
                 error: error.message || 'Failed to send file',
             });
+        }
+    }
+    async getMessages(req, res, next) {
+        try {
+            let count = 10
+            const { conversationId, page = 0, groupId, provider, providerId } = req.query;
+            const channel = channelModel.getGroupChannel(groupId, provider, providerId);
+            const accessToken = zaloOauthService.getValidAccessToken(channel.accessToken)
+
+            if (!conversationId || !accessToken) {
+                return res.status(400).json({
+                    error: 1,
+                    message: 'Thiếu conversationId hoặc access_token',
+                });
+            }
+
+            const messages = await zaloMessageService.getMessages(
+                conversationId,
+                accessToken,
+                parseInt(page),
+                parseInt(count)
+            );
+
+            res.json({
+                message: 'Success',
+                data: messages,
+            });
+        } catch (error) {
+            next(error)
         }
     }
 }
