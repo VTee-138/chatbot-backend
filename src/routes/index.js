@@ -7,8 +7,8 @@ const authRouter = require('./auth');
 const userRouter = require('./userRouter');
 const groupRouter = require('./groupsRouter');
 const channelRouter = require('./channels');
-const orderRouter = require('./orderRouter')
-
+const orderRouter = require('./orderRouter');
+const customersRouter = require('./customersRouter');
 const router = express.Router();
 // API routes
 router.use('/auth', authRouter);
@@ -18,5 +18,5 @@ router.use('/zalo', zaloRouter);
 router.use('/users', userRouter);
 router.use('/groups', groupRouter);
 router.use('/orders', orderRouter);
-
+router.use('/customers', customersRouter);
 module.exports = router;
