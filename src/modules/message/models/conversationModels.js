@@ -19,7 +19,7 @@ class ConversationModel {
             },
         });
     }
-    async createZaloConversation(providerId, providerCustomerId, lastMessageAt, customerData) {
+    async createZaloConversation(providerId, providerCustomerId, lastMessageAt, customerData = {}) {
         //sau doi thanh DTO
         const { display_name, avatar } = customerData
         const transformCustomerData = { avatarUrl: avatar, fullName: display_name }

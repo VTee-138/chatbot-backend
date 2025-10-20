@@ -1,5 +1,6 @@
 const axios = require('axios');
 const conversationModels = require('../../../message/models/conversationModels');
+const prisma = require('../../../../config/database');
 
 class ZaloAPIService {
     /**
@@ -33,18 +34,18 @@ class ZaloAPIService {
             users.push(...fetchedUsers);
 
             // Nếu ít hơn count thì dừng
-            if (fetchedUsers.length < MAX_COUNT) break;
+            if (fetchedUsers.length < MAX_USER_COUNT) break;
 
-            offset += MAX_COUNT;
+            offset += MAX_USER_COUNT;
             if (offset >= 10000) break; // Giới hạn của API
         }
 
         // Tiếp tục gọi lần 2 cho "TODAY" để gộp user hôm nay
-        const todayRes = await axios.get(ZALO_GET_LIST_USER_URL, {
+        const todayRes = await axios.get(url, {
             params: {
                 data: JSON.stringify({
                     offset: 0,
-                    count: MAX_COUNT,
+                    count: MAX_USER_COUNT,
                     last_interaction_period: 'TODAY',
                     is_follower: true,
                 }),
@@ -123,6 +124,7 @@ class ZaloAPIService {
         const users = await this.getAllUsers(accessToken);
         const allMessages = [];
         // Duyệt từng user, tạo conversation nếu chưa có
+        console.log(users)
         for (const user of users) {
             let providerCusomerId = user.user_id
             // Kiểm tra conversation đã tồn tại chưa
@@ -133,7 +135,7 @@ class ZaloAPIService {
                     providerCusomerId,
                 },
             });
-            if (!conversation) {
+            if (conversation) {
                 continue;
             }
 
@@ -159,6 +161,7 @@ class ZaloAPIService {
 
             allMessages.push(...messageData);
         }
+        console.log(allMessages)
 
         //cần phải dùng messageQueue để update kh bị mất data (update sau)
         const BATCH_SIZE = 500;

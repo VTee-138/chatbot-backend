@@ -192,6 +192,7 @@ model Customer {
   dateOfBirth    DateTime? @map("date_of_birth")
   gender         Gender?
   notes          String?   @db.Text
+  //đang bị conflict do group với conversation ......... (chắc phải sửa lại là 1 page chỉ được 1 group xem)
   groupId        String    @map("group_id")
   tagId          String?   @map("tag_id")
   createdAt      DateTime  @default(now()) @map("created_at")

@@ -136,7 +136,7 @@ class ZaloOauthService {
      *    - nếu không -> poll DB (Constants.POLL_MAX_ATTEMPTS lần) để đợi token mới từ instance khác
      *               -> nếu sau poll chưa có -> cố acquire lock lần 2 -> nếu vẫn fail -> throw error
      */
-    async getValidAccessToken({ channelId, appId, secretKey }) {
+    async getValidAccessToken(channelId, appId, secretKey) {
         // 1) read DB
         let channel = await prisma.channel.findUnique({ where: { id: channelId } });
         if (!channel) throw new ErrorResponse('Kênh tin nhắn không tồn tại', Constants.NOT_FOUND);
@@ -149,7 +149,7 @@ class ZaloOauthService {
         if (!channel?.refreshToken) {
             throw new ErrorResponse(`Vui lòng thêm lại kênh ${channel?.name}`, Constants.BAD_REQUEST)
         }
-
+        console.log(tokenIsValid)
         if (tokenIsValid) return channel.accessToken;
 
         // token expired or not present -> try to refresh with distributed lock
