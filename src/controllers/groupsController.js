@@ -72,6 +72,15 @@ class GroupController {
             next(error);
         }
     }
+    async getMyGroups(req, res, next) {
+        try {
+            const userId = req.id;
+            const groups = await GroupsService.getGroupsByUser(userId);
+            res.json({ success: true, data: groups });
+        } catch (error) {
+            next(error)
+        }
+    }
 }
 
 module.exports = new GroupController();

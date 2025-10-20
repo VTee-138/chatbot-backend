@@ -108,6 +108,41 @@ class GroupsService {
             data: { status: "declined" }
         });
     }
+
+    async getGroupsByUser(userId) {
+        // Lấy tất cả group mà user là thành viên
+        const groups = await prisma.group.findMany({
+            where: {
+                groupMembers: {
+                    some: { userId },
+                },
+            },
+            include: {
+                users: true,
+                subscriptions: {
+                    include: { plans: true }, // gói đăng ký của nhóm
+                },
+            },
+            orderBy: [
+                { isActive: 'desc' },
+                { createdAt: 'desc' },
+            ],
+        });
+
+        // Vì Prisma không hỗ trợ orderBy nested aggregate tốt trong 1 query, ta có thể sort thủ công
+        const sortedGroups = groups.sort((a, b) => {
+            const lastA = a.subscriptions.length
+                ? new Date(Math.max(...a.subscriptions.map(s => new Date(s.startedAt || 0))))
+                : 0;
+            const lastB = b.subscriptions.length
+                ? new Date(Math.max(...b.subscriptions.map(s => new Date(s.startedAt || 0))))
+                : 0;
+            return lastB - lastA;
+        });
+
+        return sortedGroups;
+    }
+
     async groupAuthorize(userId, groupId, roles = []) {
         //@todo
         return true;

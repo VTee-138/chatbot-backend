@@ -54,4 +54,8 @@ router.delete(
   GroupController.deleteMember
 );
 
+// Lấy tất cả nhóm mà user đang tham gia
+router.get('/mine', GroupController.getMyGroups);
+
+
 module.exports = router;
