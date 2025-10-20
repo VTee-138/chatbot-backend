@@ -1,5 +1,10 @@
 const prisma = require('../../../config/database')
 const axios = require('axios');
+const conversationModels = require('../models/conversationModels');
+const zaloAPIService = require('../../channel/services/zalo/zaloAPIService');
+const channelModel = require('../../channel/models/channelModel');
+const zaloOauthService = require('../../channel/services/zalo/zaloOauthService');
+const { ErrorResponse } = require('../../../utils/constant');
 
 // Store for PKCE code verifiers (in production, use Redis)
 const pkceStore = new Map();
@@ -10,15 +15,33 @@ class ZaloMessageController {
         this.handleIncomingMessage = this.handleIncomingMessage.bind(this);
         this.handleOutgoingMessage = this.handleOutgoingMessage.bind(this);
         this.sendZaloMessage = this.sendZaloMessage.bind(this);
-        this.sendMessage = this.sendMessage.bind(this);
         this.sendZaloImage = this.sendZaloImage.bind(this);
         this.sendZaloFile = this.sendZaloFile.bind(this);
+        this.appId = process.env.ZALO_APP_ID;
+        this.appSecret = process.env.ZALO_APP_SECRET
     }
 
     /**
      * Handle Zalo webhooks
      * POST /api/v1/zalo/webhook
      */
+
+    //     {
+    //     "app_id": "360846524940903967",
+    //     "sender": {
+    //         "id": "246845883529197922"
+    //     },
+    //     "user_id_by_app": "552177279717587730",
+    //     "recipient": {
+    //         "id": "388613280878808645"
+    //     },
+    //     "event_name": "user_send_text",
+    //     "message": {
+    //         "text": "message",
+    //         "msg_id": "96d3cdf3af150460909"
+    //     },
+    //     "timestamp": "154390853474"
+    // }
     async handleZaloWebhook(req, res) {
         // Respond immediately to Zalo
         res.status(200).send('OK');
@@ -35,18 +58,24 @@ class ZaloMessageController {
 
             // Determine OA_ID based on event type
             let oa_id;
+            let providerCusomerId;
             if (event_name?.startsWith('oa_send_')) {
                 // When OA sends message, OA is in sender field
                 oa_id = payload.sender?.id;
+                providerCusomerId = payload.recipient?.id;
             } else if (event_name?.startsWith('user_send_')) {
                 // When user sends message, OA is in recipient field
                 oa_id = payload.recipient?.id;
+                providerCusomerId = payload.sender?.id;
             } else if (event_name === 'user_received_message') {
                 // Delivery confirmation - OA is in sender field
                 oa_id = payload.sender?.id;
+                providerCusomerId = payload.recipient?.id;
             } else {
+                return;
                 // Fallback for other events (follow, unfollow, etc.)
                 oa_id = payload.oa_id || payload.sender?.id || payload.recipient?.id;
+                providerCusomerId = null;
             }
 
             console.log('📋 Parsed webhook data:', {
@@ -69,21 +98,6 @@ class ZaloMessageController {
                 return;
             }
 
-            // Find the channel by OA ID
-            const channel = await prisma.channel.findFirst({
-                where: {
-                    providerChannelId: String(oa_id),
-                    provider: 'ZALO'
-                }
-            });
-
-            if (!channel) {
-                console.log('⚠️ Channel not found for OA ID:', oa_id);
-                return;
-            }
-
-            console.log('✅ Channel found:', channel.id);
-
             // Handle different event types
             switch (event_name) {
                 case 'user_send_text':
@@ -95,7 +109,8 @@ class ZaloMessageController {
                 case 'user_send_audio':
                 case 'user_send_video':
                     console.log('📨 Handling incoming message:', event_name);
-                    await this.handleIncomingMessage(channel, payload);
+
+                    await this.handleIncomingMessage(oa_id, providerCusomerId, event_name.replace('user_send_', ''), payload);
                     break;
 
                 case 'oa_send_text':
@@ -104,7 +119,7 @@ class ZaloMessageController {
                 case 'oa_send_file':
                 case 'oa_send_list':
                     console.log('📤 Handling outgoing message:', event_name);
-                    await this.handleOutgoingMessage(channel, payload);
+                    await this.handleOutgoingMessage(oa_id, providerCusomerId, event_name.replace('oa_send', ''), payload);
                     break;
 
                 case 'user_received_message':
@@ -134,182 +149,89 @@ class ZaloMessageController {
     /**
      * Handle incoming message from user
      */
-    async handleIncomingMessage(channel, payload) {
+    async handleIncomingMessage(providerId, providerCusomerId, messageType, payload) {
         try {
             // Parse Zalo webhook payload
-            const { sender, recipient, message, timestamp, event } = payload;
-            const userId = sender?.id;
-            const messageData = message || event?.message;
-
-            if (!userId) {
-                return;
-            }
-            // Find or create customer
-            let customer = await prisma.customers.findFirst({
-                where: {
-                    groupId: channel.groupId,
-                    customer_identities: {
-                        some: {
-                            provider: 'ZALO',
-                            providerCustomerId: String(userId)
-                        }
-                    }
-                },
-                include: {
-                    customer_identities: true
-                }
-            });
-
-            if (!customer) {
-                // Get user info from Zalo API
-                let userName = `Zalo User ${String(userId).substring(0, 8)}`;
-
-                try {
-                    const accessToken = await this.getZaloAccessToken(channel.id);
-                    const userInfoResponse = await axios.get('https://openapi.zalo.me/v3.0/oa/user/detail', {
-                        headers: { 'access_token': accessToken },
-                        params: { data: JSON.stringify({ user_id: userId }) }
-                    });
-
-                    if (userInfoResponse.data?.data?.display_name) {
-                        userName = userInfoResponse.data.data.display_name;
-                    }
-                } catch (error) {
-                    console.log('⚠️ Could not fetch user info, using default name');
-                }
-
-                // Create new customer
-                customer = await prisma.customers.create({
-                    data: {
-                        id: `cust_zalo_${userId}_${Date.now()}`,
-                        fullName: userName,
-                        groupId: channel.groupId,
-                        createdAt: new Date(),
-                        updatedAt: new Date(),
-                        customer_identities: {
-                            create: {
-                                id: `ident_zalo_${userId}_${Date.now()}`,
-                                provider: 'ZALO',
-                                providerCustomerId: String(userId)
-                            }
-                        }
-                    }
-                });
-
-                console.log('✅ New customer created:', customer.id, userName);
-            }
+            const { sender, recipient, message, timestamp } = payload;
+            let messageSentDate = timestamp ? new Date(Number(timestamp)) : new Date();
+            let providerMessageId = message.msg_id;
 
             // Find or create conversation
             let conversation = await prisma.conversations.findFirst({
                 where: {
-                    channelId: channel.id,
-                    customerId: customer.id,
-                    status: { not: 'CLOSED' }
+                    providerCusomerId,
+                    providerId,
+                    provider: 'zalo'
+                },
+                include: {
+                    customers: true,
                 }
             });
-
             if (!conversation) {
                 // Convert timestamp to Date properly
-                const messageDate = timestamp ? new Date(Number(timestamp)) : new Date();
+                let randomChannel = await channelModel.getFirstChannel('zalo', providerId);
+                let accessToken = zaloOauthService.getValidAccessToken(randomChannel.id, this.appId, this.appSecret)
+                let customerData = await zaloAPIService.getZaloUserDetail(accessToken, providerCusomerId)
+                conversation = await conversationModels.createZaloConversation(providerId, providerCusomerId, messageSentDate, customerData)
 
-                conversation = await prisma.conversations.create({
-                    data: {
-                        id: `conv_zalo_${Date.now()}`,
-                        channelId: channel.id,
-                        customerId: customer.id,
-                        groupId: channel.groupId,
-                        status: 'OPEN',
-                        providerConversationId: `zalo_${channel.providerChannelId}_${userId}`,
-                        lastMessageAt: messageDate,
-                        createdAt: new Date(),
-                        updatedAt: new Date()
-                    }
-                });
-
-                console.log('✅ New conversation created:', conversation.id);
-
-                // Emit new conversation to group
-                const { emitNewConversation } = require('../config/socket');
-                emitNewConversation(channel.groupId, {
-                    id: conversation.id,
-                    channelId: channel.id,
-                    customer: {
-                        id: customer.id,
-                        fullName: customer.fullName
-                    },
-                    status: conversation.status,
-                    createdAt: conversation.createdAt
-                });
+                // // Emit new conversation to group
+                // const { emitNewConversation } = require('../config/socket');
+                // emitNewConversation(channel.groupId, {
+                //     id: conversation.id,
+                //     channelId: channel.id,
+                //     customer: {
+                //         id: customer.id,
+                //         fullName: customer.fullName
+                //     },
+                //     status: conversation.status,
+                //     createdAt: conversation.createdAt
+                // });
+            }
+            let checkMessage = await prisma.message.findFirst({
+                where: {
+                    conversationId: conversation.id,
+                    providerMessageId
+                }
+            });
+            if (!checkMessage) {
+                await prisma.message.create({
+                    conversationId: conversation.id,
+                    senderId: providerCusomerId,// 0 là từ OA gửi, 1 là khách gửi
+                    senderType: null,  // chỉ đặt type cho tin nhắn gửi từ OA
+                    src: 1,
+                    content: message.text || '',
+                    messageType,
+                    createdAt: new Date(msg.time),
+                })
             }
 
             // Parse message content
             let messageContent = '';
-            let messageType = 'TEXT';
             let attachments = [];
-
-            if (messageData?.text) {
-                messageContent = messageData.text;
-                messageType = 'TEXT';
-            } else if (messageData?.attachment) {
-                messageContent = messageData.attachment.payload?.url || '';
-                messageType = this.getMessageTypeFromAttachment(messageData.attachment.type);
-                attachments.push(messageData.attachment);
-            } else if (messageData?.attachments) {
-                messageContent = JSON.stringify(messageData.attachments);
-                messageType = 'FILE';
-                attachments = messageData.attachments;
+            messageContent = message.text;
+            if (message?.attachment) {
+                attachments.push(message.attachment)
             }
-
-            // Convert timestamp to Date properly
-            const messageDate = timestamp ? new Date(Number(timestamp)) : new Date();
-            const messageId = payload.message_id || `msg_zalo_${timestamp}_${Date.now()}`;
-
-            console.log('📝 Message parsed - NOT saving to DB, emitting via socket only');
-
-            // Update conversation last message time (keep metadata in sync)
-            await prisma.conversations.update({
-                where: { id: conversation.id },
-                data: {
-                    lastMessageAt: messageDate,
-                    updatedAt: new Date()
-                }
-            });
-
             // Emit message via WebSocket with Zalo-compatible format
             const { emitNewMessage, emitConversationUpdate } = require('../config/socket');
 
             try {
                 // Format message để khớp với ZaloSocketMessage interface ở frontend
                 const socketMessage = {
-                    message_id: messageId,
+                    messageId: payload.message.msg_id,
                     src: 1, // 1 = from user (customer), 0 = from OA
-                    time: messageDate.getTime(),
-                    sent_time: messageDate.toISOString(),
-                    from_id: String(userId),
-                    from_display_name: customer.fullName || 'Unknown User',
-                    from_avatar: customer.avatarUrl || '',
-                    to_id: channel.providerChannelId, // OA ID
-                    to_display_name: channel.name,
-                    to_avatar: '',
-                    type: messageType.toLowerCase(),
+                    sentTime: messageSentDate.getTime(),
+                    fromId: providerCusomerId,
+                    fromDisplayName: conversation.customer.fullName || 'Unknown User',
+                    fromAvatar: conversation.customer.avatarUrl || '',
+                    toId: providerId, // OA ID
+                    toDisplayName: null,
+                    toAvatar: null,
+                    type: messageType,
                     message: messageContent,
-                    // Include attachment info if present
-                    ...(attachments.length > 0 && {
-                        attachments: attachments.map(att => ({
-                            type: att.type,
-                            url: att.payload?.url,
-                            name: att.payload?.name
-                        }))
-                    })
+                    attachments
                 };
-
-                // Emit to room based on userId (not conversation.id) for frontend compatibility
-                console.log('📡 Emitting socket message (NO DB) to userId:', userId);
                 emitNewMessage(userId, socketMessage);
-                console.log('✅ Socket message emitted successfully (real-time only)');
-
-                // Emit conversation update for inbox list
-                console.log('📡 Emitting conversation update to group:', channel.groupId);
                 emitConversationUpdate(channel.groupId, {
                     id: conversation.id,
                     channelId: channel.id,
@@ -327,8 +249,7 @@ class ZaloMessageController {
                 console.log('✅ Conversation update emitted successfully');
 
             } catch (socketError) {
-                console.error('❌ Error emitting socket events:', socketError);
-                // Don't throw - webhook already processed successfully
+                throw socketError
             }
 
         } catch (error) {
@@ -357,39 +278,135 @@ class ZaloMessageController {
     }
 
     /**
-     * Helper: Get message type from attachment type
-     */
-    getMessageTypeFromAttachment(type) {
-        const typeMap = {
-            'image': 'IMAGE',
-            'video': 'VIDEO',
-            'audio': 'AUDIO',
-            'file': 'FILE',
-            'sticker': 'STICKER'
-        };
-        return typeMap[type?.toLowerCase()] || 'FILE';
-    }
-
-    /**
-     * Helper: Get attachment type enum
-     */
-    getAttachmentType(type) {
-        const typeMap = {
-            'image': 'IMAGE',
-            'video': 'VIDEO',
-            'audio': 'AUDIO',
-            'file': 'FILE',
-            'sticker': 'STICKER',
-            'location': 'LOCATION',
-            'contact': 'CONTACT'
-        };
-        return typeMap[type?.toLowerCase()] || 'FILE';
-    }
-
-    /**
      * Handle outgoing message from OA
      */
-    async handleOutgoingMessage(channel, payload) {
+    async handleOutgoingMessage(providerId, providerCusomerId, messageType, payload) {
+        try {
+            // Parse Zalo webhook payload
+            const { sender, recipient, message, timestamp } = payload;
+            let messageSentDate = timestamp ? new Date(Number(timestamp)) : new Date();
+            let providerMessageId = message.msg_id;
+
+            // Find or create conversation
+            let conversation = await prisma.conversations.findFirst({
+                where: {
+                    providerCusomerId,
+                    providerId,
+                    provider: 'zalo'
+                },
+                include: {
+                    customers: true,
+                }
+            });
+            if (!conversation) {
+                // Convert timestamp to Date properly
+                let randomChannel = await channelModel.getFirstChannel('zalo', providerId);
+                let accessToken = zaloOauthService.getValidAccessToken(randomChannel.id, this.appId, this.appSecret)
+                let customerData = await zaloAPIService.getZaloUserDetail(accessToken, providerCusomerId)
+                conversation = await conversationModels.createZaloConversation(providerId, providerCusomerId, messageSentDate, customerData)
+
+                // // Emit new conversation to group
+                // const { emitNewConversation } = require('../config/socket');
+                // emitNewConversation(channel.groupId, {
+                //     id: conversation.id,
+                //     channelId: channel.id,
+                //     customer: {
+                //         id: customer.id,
+                //         fullName: customer.fullName
+                //     },
+                //     status: conversation.status,
+                //     createdAt: conversation.createdAt
+                // });
+            }
+            let checkMessage = await prisma.message.findFirst({
+                where: {
+                    conversationId: conversation.id,
+                    providerMessageId
+                }
+            });
+            //đoạn này chưa xử lí được tin nhắn do ai gửi
+            if (!checkMessage) {
+                await prisma.message.create({
+                    conversationId: conversation.id,
+                    senderId: providerId,// 0 là từ OA gửi, 1 là khách gửi
+                    senderType: 'human',  // chỉ đặt type cho tin nhắn gửi từ OA
+                    src: 0,
+                    content: message.text || '',
+                    messageType,
+                    createdAt: new Date(msg.time),
+                })
+            }
+
+            // Parse message content
+            let messageContent = '';
+            let attachments = [];
+            messageContent = message.text;
+            if (message?.attachment) {
+                attachments.push(message.attachment)
+            }
+            // Emit message via WebSocket with Zalo-compatible format
+            const { emitNewMessage, emitConversationUpdate } = require('../config/socket');
+
+            try {
+                // Format message để khớp với ZaloSocketMessage interface ở frontend
+                const socketMessage = {
+                    messageId: payload.message.msg_id,
+                    src: 1, // 1 = from user (customer), 0 = from OA
+                    sentTime: messageSentDate.getTime(),
+                    fromId: providerId,
+                    fromDisplayName: null,
+                    fromAvatar: null,
+                    toId: providerCusomerId, // OA ID
+                    toDisplayName: conversation.customer.fullName || 'Unknown User',
+                    toAvatar: conversation.customer.avatarUrl || '',
+                    type: messageType,
+                    message: messageContent,
+                    attachments
+                };
+                emitNewMessage(userId, socketMessage);
+                emitConversationUpdate(channel.groupId, {
+                    id: conversation.id,
+                    channelId: channel.id,
+                    customerId: customer.id,
+                    customer: {
+                        id: customer.id,
+                        fullName: customer.fullName,
+                        avatarUrl: customer.avatarUrl
+                    },
+                    lastMessage: messageContent.substring(0, 100),
+                    lastMessageAt: messageDate,
+                    status: conversation.status,
+                    unreadCount: 1 // TODO: Calculate actual unread count
+                });
+                console.log('✅ Conversation update emitted successfully');
+
+            } catch (socketError) {
+                throw socketError
+            }
+
+        } catch (error) {
+            console.error('❌ Error handling incoming message:', error);
+            console.error('Error stack:', error.stack);
+
+            // Emit error event to monitoring/logging
+            try {
+                const { emitNotification } = require('../config/socket');
+                if (channel.groupId) {
+                    emitNotification('system', {
+                        type: 'error',
+                        title: 'Webhook Processing Error',
+                        message: `Failed to process incoming message: ${error.message}`,
+                        timestamp: new Date().toISOString(),
+                        details: {
+                            channelId: channel.id,
+                            error: error.message
+                        }
+                    });
+                }
+            } catch (notifyError) {
+                console.error('❌ Failed to emit error notification:', notifyError);
+            }
+        }
         try {
             const { recipient, message, timestamp } = payload;
             const userId = recipient?.id;
@@ -576,49 +593,15 @@ class ZaloMessageController {
      * Send a message via Zalo OA
      * POST /api/v1/zalo/send-message
      */
-    async sendZaloMessage(req, res) {
+    async sendZaloMessage(req, res, next) {
         try {
-            const { channelId, userId, message } = req.body;
-
-            // Validate required fields
-            if (!channelId || !userId || !message) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Missing required fields: channelId, userId, message'
-                });
-            }
-
-            // Get channel and verify it exists
-            const channel = await prisma.channels.findUnique({
-                where: { id: channelId },
-                include: {
-                    groups: {
-                        include: {
-                            group_members: {
-                                where: { userId: req.user.id }
-                            }
-                        }
-                    }
-                }
-            });
-
-            if (!channel) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Channel not found'
-                });
-            }
-
-            // Verify user has access to this channel's group
-            if (!channel.groups.group_members.length) {
-                return res.status(403).json({
-                    success: false,
-                    message: 'You do not have access to this channel'
-                });
-            }
+            const { groupId, providerId } = req.body
+            //@todo validate quyền của user sau 
+            //authoriza lun
 
             // Get access token using helper method (with auto-refresh if needed)
-            const accessToken = await this.getZaloAccessToken(channelId);
+            let channel = await channelModel.getGroupChannel(groupId, 'zalo', providerId);
+            let accessToken = zaloOauthService.getValidAccessToken(channel.id, this.appId, this.appSecret)
 
             // Send message to Zalo API
             const response = await axios.post(
@@ -639,68 +622,6 @@ class ZaloMessageController {
                 }
             );
 
-            console.log('✅ Message sent successfully via Zalo:', response.data);
-
-            // Find customer and conversation for socket emission (NO DB save)
-            const customer = await prisma.customers.findFirst({
-                where: {
-                    groupId: channel.groupId,
-                    customer_identities: {
-                        some: {
-                            provider: 'ZALO',
-                            providerCustomerId: userId
-                        }
-                    }
-                }
-            });
-
-            if (customer) {
-                const conversation = await prisma.conversations.findFirst({
-                    where: {
-                        channelId: channel.id,
-                        customerId: customer.id
-                    },
-                    orderBy: { lastMessageAt: 'desc' }
-                });
-
-                if (conversation) {
-                    const messageTimestamp = Date.now();
-                    const messageId = response.data.data?.message_id || `msg_zalo_out_${messageTimestamp}`;
-
-                    // Update conversation last message time (keep metadata in sync)
-                    await prisma.conversations.update({
-                        where: { id: conversation.id },
-                        data: { lastMessageAt: new Date() }
-                    });
-
-                    console.log('📝 Message NOT saved to DB - emitting via socket only');
-
-                    // Emit socket event for real-time update
-                    const { emitNewMessage } = require('../config/socket');
-
-                    // Format message để khớp với ZaloSocketMessage interface
-                    const socketMessage = {
-                        message_id: messageId,
-                        src: 0, // 0 = from OA
-                        time: messageTimestamp,
-                        sent_time: new Date().toISOString(),
-                        from_id: channel.providerChannelId, // OA ID
-                        from_display_name: channel.name,
-                        from_avatar: '',
-                        to_id: userId,
-                        to_display_name: customer.fullName || 'Unknown User',
-                        to_avatar: customer.avatarUrl || '',
-                        type: 'text',
-                        message: message
-                    };
-
-                    // Emit to room based on userId (not conversation.id) for frontend compatibility
-                    console.log('📡 Emitting socket message (NO DB) for sent message to userId:', userId);
-                    emitNewMessage(userId, socketMessage);
-                    console.log('✅ Socket event emitted (real-time only) to userId:', userId);
-                }
-            }
-
             return res.json({
                 success: true,
                 message: 'Message sent successfully',
@@ -708,138 +629,7 @@ class ZaloMessageController {
             });
 
         } catch (error) {
-            console.error('Error sending Zalo message:', error.response?.data || error.message);
-            return res.status(500).json({
-                success: false,
-                message: 'Failed to send message',
-                error: error.response?.data || error.message
-            });
-        }
-    }
-
-    /**
-     * Send message to user via Zalo OA
-     * POST /api/v1/zalo/oa/send-message
-     */
-    async sendMessage(req, res) {
-        try {
-            const { channelId, user_id, text } = req.body;
-
-            if (!channelId || !user_id || !text) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Missing channelId, user_id or text'
-                });
-            }
-
-            console.log(`📤 Sending message to user: ${user_id} via channel: ${channelId}`);
-
-            // Get channel info
-            const channel = await prisma.channels.findUnique({
-                where: { id: channelId },
-                include: {
-                    groups: true
-                }
-            });
-
-            if (!channel) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Channel not found'
-                });
-            }
-
-            // Get access token
-            const accessToken = await this.getZaloAccessToken(channelId);
-
-            // Call Zalo API
-            const payload = {
-                recipient: { user_id },
-                message: { text }
-            };
-
-            const response = await axios.post('https://openapi.zalo.me/v3.0/oa/message/cs', payload, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'access_token': accessToken
-                }
-            });
-
-            console.log('✅ Message sent via Zalo:', response.data);
-
-            // Find customer and conversation for socket emission (NO DB save)
-            const customer = await prisma.customers.findFirst({
-                where: {
-                    groupId: channel.groupId,
-                    customer_identities: {
-                        some: {
-                            provider: 'ZALO',
-                            providerCustomerId: user_id
-                        }
-                    }
-                }
-            });
-
-            if (customer) {
-                const conversation = await prisma.conversations.findFirst({
-                    where: {
-                        channelId: channel.id,
-                        customerId: customer.id
-                    },
-                    orderBy: { lastMessageAt: 'desc' }
-                });
-
-                if (conversation) {
-                    const messageTimestamp = Date.now();
-                    const messageId = response.data.data?.message_id || `msg_zalo_out_${messageTimestamp}`;
-
-                    // Update conversation last message time (keep metadata in sync)
-                    await prisma.conversations.update({
-                        where: { id: conversation.id },
-                        data: { lastMessageAt: new Date() }
-                    });
-
-                    console.log('📝 Message NOT saved to DB - emitting via socket only');
-
-                    // Emit socket event
-                    const { emitNewMessage } = require('../config/socket');
-
-                    // Format message để khớp với ZaloSocketMessage interface
-                    const socketMessage = {
-                        message_id: messageId,
-                        src: 0, // 0 = from OA
-                        time: messageTimestamp,
-                        sent_time: new Date().toISOString(),
-                        from_id: channel.providerChannelId, // OA ID
-                        from_display_name: channel.name,
-                        from_avatar: '',
-                        to_id: user_id,
-                        to_display_name: customer.fullName || 'Unknown User',
-                        to_avatar: customer.avatarUrl || '',
-                        type: 'text',
-                        message: text
-                    };
-
-                    // Emit to room based on userId (not conversation.id) for frontend compatibility
-                    console.log('📡 Emitting socket message (NO DB) for sent message to userId:', user_id);
-                    emitNewMessage(user_id, socketMessage);
-                    console.log('✅ Socket event emitted (real-time only) to userId:', user_id);
-                }
-            }
-
-            // Return send result directly
-            return res.json({
-                success: true,
-                data: response.data.data || {},
-                messageId: response.data.data?.message_id || null
-            });
-
-        } catch (error) {
-            console.error('❌ Error sending message:', error.response?.data || error.message);
-            return res.status(500).json({
-                success: false,
-                error: error.response?.data || error.message
-            });
+            next(error)
         }
     }
 

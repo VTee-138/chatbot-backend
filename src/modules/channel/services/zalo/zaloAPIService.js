@@ -1,19 +1,14 @@
 const axios = require('axios');
 const conversationModels = require('../../../message/models/conversationModels');
 
-const ZALO_GET_LIST_USER_URL = 'https://openapi.zalo.me/v3.0/oa/user/getlist';
-const MAX_USER_COUNT = 50;
-
-const ZALO_GET_MESSAGES_BY_ID_URL = 'https://openapi.zalo.me/v2.0/oa/conversation';
-const MAX_PER_REQUEST = 10;
-const MAX_TOTAL = 50;
-
 class ZaloAPIService {
     /**
      * Lấy toàn bộ user trong vòng 30 ngày qua (bao gồm cả hôm nay)
      * @param {string} accessToken token của OA
      */
     async getAllUsers(accessToken) {
+        const url = 'https://openapi.zalo.me/v3.0/oa/user/getlist';
+        const MAX_USER_COUNT = 50;
         const users = [];
         let offset = 0;
 
@@ -26,7 +21,7 @@ class ZaloAPIService {
                 is_follower: true,
             };
 
-            const res = await axios.get(ZALO_GET_LIST_USER_URL, {
+            const res = await axios.get(url, {
                 params: { data: JSON.stringify(data) },
                 headers: { access_token: accessToken },
             });
@@ -73,6 +68,9 @@ class ZaloAPIService {
      * @param {string|number} userId ID của user cần lấy tin nhắn
      */
     async getUserMessages(accessToken, userId) {
+        const url = 'https://openapi.zalo.me/v2.0/oa/conversation';
+        const MAX_PER_REQUEST = 10;
+        const MAX_TOTAL = 50;
         const messages = [];
         const seenIds = new Set();
 
@@ -81,7 +79,7 @@ class ZaloAPIService {
         while (messages.length < MAX_TOTAL) {
             const count = Math.min(MAX_PER_REQUEST, MAX_TOTAL - messages.length);
 
-            const res = await axios.get(ZALO_GET_MESSAGES_BY_ID_URL, {
+            const res = await axios.get(url, {
                 params: {
                     data: JSON.stringify({
                         user_id: userId,
@@ -135,15 +133,17 @@ class ZaloAPIService {
                     providerCusomerId,
                 },
             });
-
-            // Nếu chưa tồn tại thì tạo mới
             if (!conversation) {
-                conversation = await conversationModels.createZaloConversation(providerId, providerCusomerId)
+                continue;
             }
 
             // Lấy tin nhắn của user này
             //khi lấy đã tự động chống trùng r nhen
             const messages = await this.getUserMessages(accessToken, providerCusomerId);
+            const lastMessageAt = messages[0]?.time ? new Date(messages[0]?.time) : new Date();
+            // Nếu chưa tồn tại thì tạo mới
+            conversation = await conversationModels.createZaloConversation(providerId, providerCusomerId, lastMessageAt)
+
             if (!messages.length) continue;
             //  Chuẩn hóa tin nhắn theo schema Message
             const messageData = messages.map((msg) => ({
@@ -171,6 +171,31 @@ class ZaloAPIService {
         }
     }
 
-}
+    /**
 
+    Lấy thông tin chi tiết người dùng từ Zalo OA API
+    @param {string} userId - ID của người dùng Zalo
+    @param {string} accessToken - access_token của OA
+    @returns {Promise<object|null>} Thông tin chi tiết người dùng hoặc null nếu lỗi
+    */
+    async getZaloUserDetail(accessToken, userId) {
+        const url = 'https://openapi.zalo.me/v3.0/oa/user/detail';
+        const response = await axios.get(url, {
+            headers: {
+                access_token: accessToken,
+            },
+            params: {
+                data: JSON.stringify({ user_id: userId }),
+            },
+        });
+
+        if (response.data.error === 0) {
+            return response.data.data; // Trả về thông tin người dùng
+        } else {
+            console.log('⚠️ Zalo API error:', response.data.message);
+            return null;
+        }
+
+    }
+}
 module.exports = new ZaloAPIService();
