@@ -403,7 +403,7 @@ const forgot = catchAsync( async(req, res, next) =>{
     
     try {
       // Send email
-      await sendEmailToVerify(EmailType.FORGOT, config.URL_MAIL_PUBLIC, token, email, '🚀 Link xác nhận quên mật khẩu đã tới!', HtmlConverter.Forgot)
+      sendEmailToVerify(EmailType.RESET_PASSWORD, config.URL_MAIL_PUBLIC, token, email, '🚀 Link xác nhận quên mật khẩu đã tới!', HtmlConverter.Forgot)
       
       const message = config.NODE_ENV === 'development' 
         ? 'Yêu cầu đã được xử lý thành công! (Development mode - check server logs for email content)'
@@ -632,7 +632,7 @@ const resendVerifyEmail = catchAsync(async (req, res, next) =>{
     }
 
     // Send Email
-    sendEmailToVerify(type, config.URL_MAIL_PUBLIC, newToken, email, subject, htmlConverter)
+    sendEmailToVerify(type =='forgot'?EmailType.RESET_PASSWORD: EmailType.REGISTER, config.URL_MAIL_PUBLIC, newToken, email, subject, htmlConverter)
     return successResponse(res, 'Đã nhận được yêu cầu của bạn, vui lòng xác nhận trong email!', 200)
   } catch (error) {
     if (error.name === 'TokenExpiredError') {

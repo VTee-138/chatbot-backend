@@ -10,7 +10,7 @@
  * //Send link forgot
  * linkVerifyingToSend('abc', EmailType.FORGOT, 'chatgpt.com') => "https://chatgpt.com=/forgot/auth/abc"
  */
-const linkVerifyingToSend = (code, type, domain) => `${domain}/${type}/auth/code=${code}`
+const linkVerifyingToSend = (code, type, domain) => `${domain}/${type}?code=${code}`
 
 // HTML DESIGN
 // Lưu ý những file HTML chỉ nên có mỗi 
@@ -85,8 +85,9 @@ const EmailType = {
     REGISTER : 'register',
     FORGOT : 'forgot',
     MFA: "2fa",
-    GROUP_INVITATION: 'group_invitation'
+    GROUP_INVITATION: 'group_invitation',
+    RESET_PASSWORD: 'reset-password'
 }
-const EmailTypeList = ['register', 'forgot', '2fa', 'group_invitation']
+const EmailTypeList = ['register', 'forgot', '2fa', 'group_invitation', 'reset-password']
 
 module.exports = { EmailTypeList, EmailType, HtmlConverter, htmlForgotVerifiedLink, htmlRegisterVerifiedLink, linkVerifyingToSend, htmlGroupInvitation}

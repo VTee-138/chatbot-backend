@@ -69,7 +69,7 @@ authRouter.post(
 );
 authRouter.post(
   "/reset-password",
-  schemaValidate(AuthValidators.ResetForgotPasswordSchema, "validate"),
+  schemaValidate(AuthValidators.ResetForgotPasswordSchema, "body"),
   resetPassword
 );
 authRouter.post("/register/verify-email", verifyMail);
