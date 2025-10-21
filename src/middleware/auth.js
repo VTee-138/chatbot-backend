@@ -107,7 +107,7 @@ const authenticateApiKey = async (req, res, next) => {
           select: {
             id: true,
             name: true,
-            slug: true,
+            // slug: true,
             isActive: true,
           },
         },

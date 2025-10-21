@@ -320,7 +320,7 @@ const refreshToken = catchAsync(async (req, res) => {
         id: userGroups[0].groups.id,
         name: userGroups[0].groups.name,
         role: userGroups[0].role,
-        slug: userGroups[0].groups.slug
+        // slug: userGroups[0].groups.slug
       };
     }
 
@@ -516,7 +516,7 @@ const getProfile = catchAsync(async (req, res) => {
         select: {
           id: true,
           name: true,
-          slug: true
+          // slug: true
         }
       }
     }
@@ -729,7 +729,7 @@ const openSession = catchAsync ( async (req, res, next) => {
         id: userGroups[0].groups.id,
         name: userGroups[0].groups.name,
         role: userGroups[0].role,
-        slug: userGroups[0].groups.slug
+        // slug: userGroups[0].groups.slug
       };
     }
   
