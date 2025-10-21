@@ -1,5 +1,5 @@
 const userCredentialModel = require("../model/userCredentialModel")
-const { Constants } = require("../utils/constant")
+const { Constants, ErrorResponse } = require("../utils/constant")
 const { hashPassword, generateApiKey } = require("../utils/crypto")
 const ssoService = require("../utils/ssoService")
 
@@ -28,20 +28,20 @@ class authService{
     validateForgotAccount = async (email) => {
         const user = await userCredentialModel.findUserByEmail(email)
         if (!user) {
-            const error = new Error("Tài khoản không tồn tại")
+            const error = new ErrorResponse("Tài khoản không tồn tại")
             error.status = Constants.BAD_REQUEST
             throw error
         }
 
         if (!user.emailVerifiedAt) {
-            const error = new Error("Email chưa được xác minh")
+            const error = new ErrorResponse("Email chưa được xác minh")
             error.status = Constants.BAD_REQUEST
             throw error
         }
 
         const isSSO = await userCredentialModel.isSSOAccount(user.id)
         if (isSSO) {
-            const error = new Error("Tài khoản SSO không thể dùng chức năng quên mật khẩu")
+            const error = new ErrorResponse("Tài khoản SSO không thể dùng chức năng quên mật khẩu")
             error.status = Constants.BAD_REQUEST
             throw error
         }
