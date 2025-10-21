@@ -1,9 +1,9 @@
-const { Constants } = require("../utils/constant.js");
+const { Constants, ErrorResponse } = require("../utils/constant.js");
 
 const errorHandler = (err, req, res, next) => {
     console.error('Error:', err);
 
-    if (err instanceof Constants.ErrorResponse) {
+    if (err instanceof ErrorResponse) {
         return res.status(err.status).json({
             status: err.status,
             message: err.message

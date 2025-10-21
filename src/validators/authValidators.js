@@ -129,10 +129,17 @@ class AuthValidators {
             })
     })
     static LoginWithCaptchaSchema = Joi.object({
-        userName: Joi.string()
+        // userName: Joi.string()
+        //     .required()
+        //     .messages({
+        //         "any.required": "Vui lòng nhập UserName"
+        //     }),
+        email: Joi.string()
+            .email()
             .required()
             .messages({
-                "any.required": "Vui lòng nhập UserName"
+                "string.email": "Email không hợp lệ, Email là thông tin bắt buộc",
+                "any.required": "Vui lòng nhập email"
             }),
         password: Joi.string()
             .required()

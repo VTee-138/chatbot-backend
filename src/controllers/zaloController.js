@@ -17,7 +17,7 @@ class ZaloController {
       const userId = req.user.id;
 
       // Verify user has access to this group
-      const groupMember = await prisma.group_members.findFirst({
+      const groupMember = await prisma.groupMember.findFirst({
         where: {
           groupId,
           userId,
@@ -474,7 +474,7 @@ class ZaloController {
         include: {
           groups: {
             include: {
-              group_members: {
+              groupMember: {
                 where: { userId: req.user.userId }
               }
             }
