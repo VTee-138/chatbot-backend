@@ -15,7 +15,7 @@ exports.getChannelById = async (req, res) => {
       include: {
         groups: {
           include: {
-            group_members: {
+            groupMember: {
               where: { userId }
             }
           }
@@ -81,7 +81,7 @@ exports.getChannelConversations = async (req, res) => {
       include: {
         groups: {
           include: {
-            group_members: {
+            groupMember: {
               where: { userId }
             }
           }
@@ -135,7 +135,7 @@ exports.getChannelConversations = async (req, res) => {
             avatarUrl: true
           }
         },
-        group_members: {
+        groupMember: {
           select: {
             id: true,
             users: {
@@ -227,7 +227,7 @@ exports.updateChannelStatus = async (req, res) => {
       include: {
         groups: {
           include: {
-            group_members: {
+            groupMember: {
               where: {
                 userId,
                 role: { in: ['ADMIN', 'OWNER'] }
@@ -295,7 +295,7 @@ exports.getChannelStats = async (req, res) => {
       include: {
         groups: {
           include: {
-            group_members: {
+            groupMember: {
               where: { userId }
             }
           }

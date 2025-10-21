@@ -298,14 +298,14 @@ const refreshToken = catchAsync(async (req, res) => {
     });
 
     // Get user's groups for updated payload
-    const userGroups = await prisma.group_members.findMany({
+    const userGroups = await prisma.groupMember.findMany({
       where: { userId: user.id },
       include: {
         groups: {
           select: {
             id: true,
             name: true,
-            slug: true
+            // slug: true
           }
         }
       },
@@ -320,7 +320,7 @@ const refreshToken = catchAsync(async (req, res) => {
         id: userGroups[0].groups.id,
         name: userGroups[0].groups.name,
         role: userGroups[0].role,
-        slug: userGroups[0].groups.slug
+        // slug: userGroups[0].groups.slug
       };
     }
 
@@ -509,14 +509,14 @@ const getProfile = catchAsync(async (req, res) => {
   console.log(`✅ Found user in database: ${user.userName} (${user.email})`);
 
   // Get user's groups
-  const userGroups = await prisma.group_members.findMany({
+  const userGroups = await prisma.groupMember.findMany({
     where: { userId: user.id },
     include: {
       groups: {
         select: {
           id: true,
           name: true,
-          slug: true
+          // slug: true
         }
       }
     }
@@ -703,7 +703,7 @@ const openSession = catchAsync ( async (req, res, next) => {
     const ssoProviders = (ssoUsers || []).map(s => s.provider);
     
     // Get user's groups and check if they need to create first group
-    const userGroups = await prisma.group_members.findMany({
+    const userGroups = await prisma.groupMember.findMany({
       where: { userId: user.id },
       include: {
         groups: {
@@ -729,7 +729,7 @@ const openSession = catchAsync ( async (req, res, next) => {
         id: userGroups[0].groups.id,
         name: userGroups[0].groups.name,
         role: userGroups[0].role,
-        slug: userGroups[0].groups.slug
+        // slug: userGroups[0].groups.slug
       };
     }
   
