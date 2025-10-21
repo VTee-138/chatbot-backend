@@ -1,3 +1,4 @@
+const { custom } = require('joi');
 const prisma = require('../../../config/database'); // Đường dẫn tới Prisma instance
 
 class conversationService {
@@ -21,6 +22,7 @@ class conversationService {
                     take: 1, // chỉ lấy message mới nhất
                     select: { id: true, src: true, createdAt: true },
                 },
+                customers: true
             },
         });
 

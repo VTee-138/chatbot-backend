@@ -41,6 +41,7 @@ class Constants {
     static LOCK_TTL_MS = 8_000; // TTL khóa (ms)
     static POLL_INTERVAL_MS = 300; // khi không có lock, chờ poll DB
     static POLL_MAX_ATTEMPTS = 8; // tối đa chờ
+
 }
 /**
  * Custom Error class dùng để chuẩn hóa lỗi trong hệ thống.
@@ -69,7 +70,23 @@ class ErrorResponse extends Error {
     }
 }
 
+function getProviderAppKey(provider) {
+    switch (provider) {
+        case 'zalo':
+            return {
+                appId: process.env.ZALO_APP_ID, appSecret: process.env.ZALO_APP_SECRET
+            }
+            break;
+
+        default:
+            return {
+                appId: null, appSecret: null
+            }
+            break;
+    }
+}
 module.exports = {
     Constants,
-    ErrorResponse
+    ErrorResponse,
+    getProviderAppKey
 };

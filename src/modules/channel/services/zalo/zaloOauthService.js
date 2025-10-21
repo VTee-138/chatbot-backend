@@ -5,6 +5,7 @@ const RedisUtility = require("../../../../utils/redisUtils");
 const DatetimeUtility = require('../../../../utils/datetimeUtils');
 const { ErrorResponse, Constants } = require('../../../../utils/constant');
 const PKCEUtility = require('../../../../utils/pkceUtils');
+const app = require('../../../../server');
 
 class ZaloOauthService {
     /**
@@ -92,12 +93,14 @@ class ZaloOauthService {
         const url = Constants.ZALO.GET_TOKEN_URL;
         const params = new URLSearchParams();
         params.append('app_id', appId);
-        params.append('secret_key', secretKey);
         params.append('grant_type', 'refresh_token');
         params.append('refresh_token', channel.refreshToken);
-
+        console.log(params.toString())
         const resp = await axios.post(url, params.toString(), {
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                "secret_key": secretKey
+            },
             timeout: 10_000
         });
 
@@ -149,9 +152,9 @@ class ZaloOauthService {
         if (!channel?.refreshToken) {
             throw new ErrorResponse(`Vui lòng thêm lại kênh ${channel?.name}`, Constants.BAD_REQUEST)
         }
-        console.log(tokenIsValid)
         if (tokenIsValid) return channel.accessToken;
 
+        console.log(channel)
         // token expired or not present -> try to refresh with distributed lock
         const lockKey = `${Constants.LOCK_KEY_PREFIX}${channelId}`;
         let lockValue = await RedisUtility.acquireLock(lockKey, Constants.LOCK_TTL_MS);

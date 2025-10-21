@@ -4,11 +4,9 @@ const conversationModels = require('../models/conversationModels');
 const zaloAPIService = require('../../channel/services/zalo/zaloAPIService');
 const channelModel = require('../../channel/models/channelModel');
 const zaloOauthService = require('../../channel/services/zalo/zaloOauthService');
-const { ErrorResponse } = require('../../../utils/constant');
+const { ErrorResponse, getProviderAppKey } = require('../../../utils/constant');
 const zaloMessageService = require('../services/zaloMessageService');
 
-// Store for PKCE code verifiers (in production, use Redis)
-const pkceStore = new Map();
 
 class ZaloMessageController {
     constructor() {
@@ -949,16 +947,18 @@ class ZaloMessageController {
         try {
             let count = 10
             const { conversationId, page = 0, groupId, provider, providerId } = req.query;
-            const channel = channelModel.getGroupChannel(groupId, provider, providerId);
-            const accessToken = zaloOauthService.getValidAccessToken(channel.accessToken)
-
+            const channel = await channelModel.getGroupChannel(groupId, provider, providerId);
+            if (!channel) {
+                throw new ErrorResponse('Bạn chưa có quyền để load cuộc trò truyện này', 401);
+            }
+            const { appId, appSecret } = getProviderAppKey(channel.provider);
+            const accessToken = await zaloOauthService.getValidAccessToken(channel.id, appId, appSecret)
             if (!conversationId || !accessToken) {
                 return res.status(400).json({
                     error: 1,
                     message: 'Thiếu conversationId hoặc access_token',
                 });
             }
-
             const messages = await zaloMessageService.getMessages(
                 conversationId,
                 accessToken,
