@@ -20,7 +20,7 @@ class conversationService {
                 messages: {
                     orderBy: { createdAt: 'desc' },
                     take: 1, // chỉ lấy message mới nhất
-                    select: { id: true, src: true, createdAt: true },
+                    select: { id: true, src: true, content: true, createdAt: true },
                 },
                 customers: true
             },

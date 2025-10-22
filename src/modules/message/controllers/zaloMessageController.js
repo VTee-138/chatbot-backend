@@ -13,7 +13,6 @@ class ZaloMessageController {
         this.handleZaloWebhook = this.handleZaloWebhook.bind(this);
         this.handleIncomingMessage = this.handleIncomingMessage.bind(this);
         this.handleOutgoingMessage = this.handleOutgoingMessage.bind(this);
-        this.sendZaloMessage = this.sendZaloMessage.bind(this);
         this.sendZaloImage = this.sendZaloImage.bind(this);
         this.sendZaloFile = this.sendZaloFile.bind(this);
         this.appId = process.env.ZALO_APP_ID;
@@ -588,49 +587,49 @@ class ZaloMessageController {
         }
     }
 
-    /**
-     * Send a message via Zalo OA
-     * POST /api/v1/zalo/send-message
-     */
-    async sendZaloMessage(req, res, next) {
-        try {
-            const { groupId, providerId, message } = req.body
-            //@todo validate quyền của user sau 
-            //authoriza lun
+    // /**
+    //  * Send a message via Zalo OA
+    //  * POST /api/v1/zalo/send-message
+    //  */
+    // async sendZaloMessage(req, res, next) {
+    //     try {
+    //         const { groupId, providerId, message } = req.body
+    //         //@todo validate quyền của user sau 
+    //         //authoriza lun
 
-            // Get access token using helper method (with auto-refresh if needed)
-            let channel = await channelModel.getGroupChannel(groupId, 'zalo', providerId);
-            let accessToken = zaloOauthService.getValidAccessToken(channel.id, this.appId, this.appSecret)
+    //         // Get access token using helper method (with auto-refresh if needed)
+    //         let channel = await channelModel.getGroupChannel(groupId, 'zalo', providerId);
+    //         let accessToken = zaloOauthService.getValidAccessToken(channel.id, this.appId, this.appSecret)
 
-            // Send message to Zalo API
-            const response = await axios.post(
-                'https://openapi.zalo.me/v3.0/oa/message/cs',
-                {
-                    recipient: {
-                        user_id: userId
-                    },
-                    message: {
-                        text: message
-                    }
-                },
-                {
-                    headers: {
-                        'access_token': accessToken,
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
+    //         // Send message to Zalo API
+    //         const response = await axios.post(
+    //             'https://openapi.zalo.me/v3.0/oa/message/cs',
+    //             {
+    //                 recipient: {
+    //                     user_id: userId
+    //                 },
+    //                 message: {
+    //                     text: message
+    //                 }
+    //             },
+    //             {
+    //                 headers: {
+    //                     'access_token': accessToken,
+    //                     'Content-Type': 'application/json'
+    //                 }
+    //             }
+    //         );
 
-            return res.json({
-                success: true,
-                message: 'Message sent successfully',
-                data: response.data
-            });
+    //         return res.json({
+    //             success: true,
+    //             message: 'Message sent successfully',
+    //             data: response.data
+    //         });
 
-        } catch (error) {
-            next(error)
-        }
-    }
+    //     } catch (error) {
+    //         next(error)
+    //     }
+    // }
 
     /**
      * Send image via Zalo OA

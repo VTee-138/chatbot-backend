@@ -1,6 +1,9 @@
 const { default: axios } = require('axios');
 const prisma = require('../../../config/database'); // Đường dẫn tới Prisma instance
 const { ErrorResponse } = require('../../../utils/constant');
+const channelModel = require('../../channel/models/channelModel');
+const zaloOauthService = require('../../channel/services/zalo/zaloOauthService');
+const config = require('../../../config');
 
 class conversationService {
     /**
@@ -52,6 +55,40 @@ class conversationService {
             }
         }).reverse();
         return messageList
+    }
+    /**
+     * Send a message via Zalo OA
+     * POST /api/v1/zalo/send-message
+     */
+    async sendZaloMessage(groupId, providerId, userId, message) {
+
+        //@todo validate quyền của user sau 
+        //authoriza lun
+
+        // Get access token using helper method (with auto-refresh if needed)
+        let channel = await channelModel.getGroupChannel(groupId, 'zalo', providerId);
+        let accessToken = await zaloOauthService.getValidAccessToken(channel.id, config.ZALO_APP_ID, config.ZALO_APP_SECRET)
+
+        // Send message to Zalo API
+        const response = await axios.post(
+            'https://openapi.zalo.me/v3.0/oa/message/cs',
+            {
+                recipient: {
+                    user_id: userId
+                },
+                message: {
+                    text: message
+                }
+            },
+            {
+                headers: {
+                    'access_token': accessToken,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+        console.log(response.data)
+        return response?.data
     }
 }
 module.exports = new conversationService()

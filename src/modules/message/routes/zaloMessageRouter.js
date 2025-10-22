@@ -31,14 +31,14 @@ router.post('/oa/send-file', ZaloMessageController.sendZaloFile);
  */
 router.post('/webhook', ZaloMessageController.handleZaloWebhook);
 
-/**
- * @route   POST /api/v1/zalo/send-message (legacy endpoint for compatibility)
- * @desc    Send a message via Zalo OA (uses channelId and userId)
- * @access  Private
- * @body    channelId - Channel ID (required)
- * @body    userId - Zalo user ID (required)
- * @body    message - Message text (required)
- */
-router.post('/send-message', ZaloMessageController.sendZaloMessage);
+// /**
+//  * @route   POST /api/v1/zalo/send-message (legacy endpoint for compatibility)
+//  * @desc    Send a message via Zalo OA (uses channelId and userId)
+//  * @access  Private
+//  * @body    channelId - Channel ID (required)
+//  * @body    userId - Zalo user ID (required)
+//  * @body    message - Message text (required)
+//  */
+// router.post('/send-message', ZaloMessageController.sendZaloMessage);
 router.get('/get-messages', ZaloMessageController.getMessages);
 module.exports = router;

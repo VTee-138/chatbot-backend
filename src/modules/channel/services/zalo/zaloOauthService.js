@@ -153,8 +153,7 @@ class ZaloOauthService {
             throw new ErrorResponse(`Vui lòng thêm lại kênh ${channel?.name}`, Constants.BAD_REQUEST)
         }
         if (tokenIsValid) return channel.accessToken;
-
-        console.log(channel)
+        console.log('token invalid-- starting refresh')
         // token expired or not present -> try to refresh with distributed lock
         const lockKey = `${Constants.LOCK_KEY_PREFIX}${channelId}`;
         let lockValue = await RedisUtility.acquireLock(lockKey, Constants.LOCK_TTL_MS);
@@ -162,6 +161,7 @@ class ZaloOauthService {
             // we acquired lock -> perform refresh
             try {
                 const updated = await this.refreshChannelToken({ channelId, appId, secretKey });
+                console.log("refresh thanhf cong")
                 return updated.accessToken;
             } catch (err) {
                 // If refresh failed, release lock and propagate error.
