@@ -5,6 +5,10 @@ const channelModel = require('../../channel/models/channelModel');
 const zaloOauthService = require('../../channel/services/zalo/zaloOauthService');
 const config = require('../../../config');
 
+const ZALO_IMAGE_URL = 'https://openapi.zalo.me/v2.0/oa/upload/image';
+const ZALO_FILE_URL = 'https://openapi.zalo.me/v2.0/oa/upload/file';
+const ZALO_MESSAGE_URL = 'https://openapi.zalo.me/v3.0/oa/message/cs';
+
 class conversationService {
     /**
    * Lấy tin nhắn từ API Zalo
@@ -71,7 +75,7 @@ class conversationService {
 
         // Send message to Zalo API
         const response = await axios.post(
-            'https://openapi.zalo.me/v3.0/oa/message/cs',
+            ZALO_MESSAGE_URL,
             {
                 recipient: {
                     user_id: userId
@@ -87,8 +91,92 @@ class conversationService {
                 }
             }
         );
-        console.log(response.data)
         return response?.data
     }
+
+    /**
+     * Upload ảnh lên Zalo OA
+     */
+    async uploadZaloImage(accessToken, filePath) {
+        const form = new FormData();
+        form.append('file', fs.createReadStream(filePath));
+
+        const response = await axios.post(ZALO_IMAGE_URL, form, {
+            headers: {
+                'access_token': accessToken,
+                ...form.getHeaders(),
+            },
+        });
+
+        const attachmentId = response.data.data.attachment_id;
+        const messageBody = {
+            recipient: { user_id: userId },
+            message: {
+                text,
+                attachment: {
+                    type: 'template',
+                    payload: {
+                        template_type: 'media',
+                        elements: [
+                            {
+                                media_type: 'image',
+                                attachment_id: attachmentId,
+                            },
+                        ],
+                    },
+                },
+            },
+        };
+
+        const messageResponse = await axios.post(ZALO_MESSAGE_URL, messageBody, {
+            headers: {
+                'Content-Type': 'application/json',
+                access_token: accessToken,
+            },
+        });
+
+        console.log('✅ Image message sent:', messageResponse.data);
+        return {
+            message: messageResponse.data,
+        };
+    }
+
+    /**
+     * Upload file (PDF/DOC/DOCX) lên Zalo OA
+     */
+    async uploadZaloFile(accessToken, filePath) {
+        const form = new FormData();
+        form.append('file', fs.createReadStream(filePath));
+
+        const response = await axios.post(ZALO_FILE_URL, form, {
+            headers: {
+                'access_token': accessToken,
+                ...form.getHeaders(),
+            },
+        });
+        const token = response.data.data.token;
+        const messageBody = {
+            recipient: { user_id: userId },
+            message: {
+                attachment: {
+                    type: 'file',
+                    payload: { token },
+                },
+            },
+        };
+
+        const messageResponse = await axios.post(ZALO_MESSAGE_URL, messageBody, {
+            headers: {
+                'Content-Type': 'application/json',
+                access_token: accessToken,
+            },
+        });
+
+        console.log('✅ File message sent:', messageResponse.data);
+        return {
+            message: messageResponse.data,
+        };
+    }
+
 }
 module.exports = new conversationService()

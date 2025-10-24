@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const ZaloMessageController = require('../controllers/zaloMessageController');
+const multer = require('multer');
 
+const upload = multer({ dest: 'uploads/' }); // lưu file tạm vào thư mục uploads
 /**
  * @route   POST /api/v1/zalo/oa/send-image
  * @desc    Send an image to a user via Zalo OA
@@ -41,4 +43,12 @@ router.post('/webhook', ZaloMessageController.handleZaloWebhook);
 //  */
 // router.post('/send-message', ZaloMessageController.sendZaloMessage);
 router.get('/get-messages', ZaloMessageController.getMessages);
+
+// /api/v1/zalo/upload/image
+// Upload ảnh
+router.post('/upload/image', upload.single('file'), ZaloMessageController.uploadImage);
+
+// /api/v1/zalo/upload/file
+// Upload file (PDF/DOC/DOCX)
+router.post('/upload/file', upload.single('file'), ZaloMessageController.uploadFile);
 module.exports = router;

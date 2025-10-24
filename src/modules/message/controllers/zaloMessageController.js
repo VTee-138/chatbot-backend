@@ -587,50 +587,6 @@ class ZaloMessageController {
         }
     }
 
-    // /**
-    //  * Send a message via Zalo OA
-    //  * POST /api/v1/zalo/send-message
-    //  */
-    // async sendZaloMessage(req, res, next) {
-    //     try {
-    //         const { groupId, providerId, message } = req.body
-    //         //@todo validate quyền của user sau 
-    //         //authoriza lun
-
-    //         // Get access token using helper method (with auto-refresh if needed)
-    //         let channel = await channelModel.getGroupChannel(groupId, 'zalo', providerId);
-    //         let accessToken = zaloOauthService.getValidAccessToken(channel.id, this.appId, this.appSecret)
-
-    //         // Send message to Zalo API
-    //         const response = await axios.post(
-    //             'https://openapi.zalo.me/v3.0/oa/message/cs',
-    //             {
-    //                 recipient: {
-    //                     user_id: userId
-    //                 },
-    //                 message: {
-    //                     text: message
-    //                 }
-    //             },
-    //             {
-    //                 headers: {
-    //                     'access_token': accessToken,
-    //                     'Content-Type': 'application/json'
-    //                 }
-    //             }
-    //         );
-
-    //         return res.json({
-    //             success: true,
-    //             message: 'Message sent successfully',
-    //             data: response.data
-    //         });
-
-    //     } catch (error) {
-    //         next(error)
-    //     }
-    // }
-
     /**
      * Send image via Zalo OA
      * POST /api/v1/zalo/oa/send-image
@@ -971,6 +927,51 @@ class ZaloMessageController {
             });
         } catch (error) {
             next(error)
+        }
+    }
+    async uploadImage(req, res) {
+        const filePath = req.file?.path;
+        try {
+            const { groupId, provider, providerId } = req.body;
+            const channel = await channelModel.getGroupChannel(groupId, provider, providerId);
+            if (!channel) {
+                throw new ErrorResponse('Bạn chưa có quyền để load cuộc trò truyện này', 401);
+            }
+            const { appId, appSecret } = getProviderAppKey(channel.provider);
+            const accessToken = await zaloOauthService.getValidAccessToken(channel.id, appId, appSecret)
+            if (!accessToken) throw new ErrorResponse('Kênh này cần phải được cấp quyền lại', 400);
+            if (!filePath) throw new ErrorResponse('Không có file', 400);
+
+            const result = await zaloMessageService.uploadZaloImage(accessToken, filePath);
+            res.json(result);
+        } catch (error) {
+            next(error)
+        } finally {
+            //  Xóa file tạm sau khi xử lý xong (thành công hoặc lỗi)
+            if (filePath) fs.unlink(filePath, () => { });
+        }
+    }
+
+    async uploadFile(req, res, next) {
+        const filePath = req.file?.path;
+        try {
+            const { groupId, provider, providerId } = req.body;
+            const channel = await channelModel.getGroupChannel(groupId, provider, providerId);
+            if (!channel) {
+                throw new ErrorResponse('Bạn chưa có quyền để load cuộc trò truyện này', 401);
+            }
+            const { appId, appSecret } = getProviderAppKey(channel.provider);
+            const accessToken = await zaloOauthService.getValidAccessToken(channel.id, appId, appSecret)
+            if (!accessToken) throw new ErrorResponse('Kênh này cần phải được cấp quyền lại', 400);
+            if (!filePath) throw new ErrorResponse('Không có file', 400);
+
+            const result = await zaloMessageService.uploadZaloFile(accessToken, filePath);
+            res.json(result);
+        } catch (error) {
+            next(error)
+        } finally {
+            //  Xóa file tạm
+            if (filePath) fs.unlink(filePath, () => { });
         }
     }
 }
