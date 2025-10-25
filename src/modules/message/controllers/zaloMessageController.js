@@ -155,7 +155,7 @@ class ZaloMessageController {
         let providerMessageId = message.msg_id;
 
         // Find or create conversation
-        let conversation = await prisma.conversations.findFirst({
+        let conversation = await prisma.conversation.findFirst({
             where: {
                 providerCustomerId,
                 providerId,
@@ -263,7 +263,7 @@ class ZaloMessageController {
             let providerMessageId = message.msg_id;
 
             // Find or create conversation
-            let conversation = await prisma.conversations.findFirst({
+            let conversation = await prisma.conversation.findFirst({
                 where: {
                     providerCustomerId,
                     providerId,
@@ -320,8 +320,6 @@ class ZaloMessageController {
             if (message?.attachment) {
                 attachments.push(message.attachment)
             }
-            // Emit message via WebSocket with Zalo-compatible format
-            const { emitNewMessage, emitConversationUpdate } = require('../config/socket');
 
             try {
                 // Format message để khớp với ZaloSocketMessage interface ở frontend
@@ -388,151 +386,6 @@ class ZaloMessageController {
             } catch (notifyError) {
                 console.error('❌ Failed to emit error notification:', notifyError);
             }
-        }
-        try {
-            const { recipient, message, timestamp } = payload;
-            const userId = recipient?.id;
-
-            if (!userId) {
-                console.log('⚠️ No recipient ID in webhook');
-                return;
-            }
-
-            console.log('📤 Processing outgoing message to user:', userId);
-
-            // Find or create customer
-            let customer = await prisma.customers.findFirst({
-                where: {
-                    groupId: channel.groupId,
-                    customer_identities: {
-                        some: {
-                            provider: 'ZALO',
-                            providerCustomerId: String(userId)
-                        }
-                    }
-                }
-            });
-
-            if (!customer) {
-                console.log('⚠️ Customer not found, creating new customer for OA outgoing message');
-
-                // Try to fetch user info from Zalo API
-                let userName = `Zalo User ${userId.substring(0, 8)}`;
-                try {
-                    const accessToken = await this.getZaloAccessToken(channel.id);
-                    const userInfoResponse = await axios.get(
-                        `https://openapi.zalo.me/v3.0/oa/user/detail?data={"user_id":"${userId}"}`,
-                        { headers: { access_token: accessToken } }
-                    );
-
-                    if (userInfoResponse.data?.data?.display_name) {
-                        userName = userInfoResponse.data.data.display_name;
-                    }
-                } catch (error) {
-                    console.log('⚠️ Could not fetch user info, using default name');
-                }
-
-                // Create new customer
-                customer = await prisma.customers.create({
-                    data: {
-                        id: `cust_zalo_${userId}_${Date.now()}`,
-                        fullName: userName,
-                        groupId: channel.groupId,
-                        createdAt: new Date(),
-                        updatedAt: new Date(),
-                        customer_identities: {
-                            create: {
-                                id: `ident_zalo_${userId}_${Date.now()}`,
-                                provider: 'ZALO',
-                                providerCustomerId: String(userId)
-                            }
-                        }
-                    }
-                });
-
-                console.log('✅ New customer created for outgoing message:', customer.id, userName);
-            }
-
-            // Find or create conversation
-            let conversation = await prisma.conversations.findFirst({
-                where: {
-                    channelId: channel.id,
-                    customerId: customer.id
-                },
-                orderBy: { lastMessageAt: 'desc' }
-            });
-
-            if (!conversation) {
-                console.log('⚠️ Conversation not found, creating new conversation for outgoing message');
-
-                // Convert timestamp to Date properly
-                const messageDate = timestamp ? new Date(Number(timestamp)) : new Date();
-
-                conversation = await prisma.conversations.create({
-                    data: {
-                        id: `conv_zalo_${Date.now()}`,
-                        channelId: channel.id,
-                        customerId: customer.id,
-                        groupId: channel.groupId,
-                        status: 'OPEN',
-                        providerConversationId: `zalo_${channel.providerChannelId}_${userId}`,
-                        lastMessageAt: messageDate,
-                        createdAt: new Date(),
-                        updatedAt: new Date()
-                    }
-                });
-
-                console.log('✅ New conversation created for outgoing message:', conversation.id);
-
-                emitNewConversation(channel.groupId, {
-                    id: conversation.id,
-                    channelId: channel.id,
-                    customer: {
-                        id: customer.id,
-                        fullName: customer.fullName
-                    },
-                    status: conversation.status,
-                    createdAt: conversation.createdAt
-                });
-            }
-
-            // Parse message
-            const messageContent = message?.text || JSON.stringify(message);
-
-            // Convert timestamp to Date properly
-            const messageDate = timestamp ? new Date(Number(timestamp)) : new Date();
-            const messageId = payload.message_id || `msg_zalo_out_${timestamp}_${Date.now()}`;
-
-            console.log('📝 Outgoing message parsed - NOT saving to DB, emitting via socket only');
-
-            // Update conversation last message time (keep metadata in sync)
-            await prisma.conversations.update({
-                where: { id: conversation.id },
-                data: {
-                    lastMessageAt: messageDate,
-                    updatedAt: new Date()
-                }
-            });
-
-            // Format message để khớp với ZaloSocketMessage interface ở frontend
-            const socketMessage = {
-                message_id: messageId,
-                src: 0, // 0 = from OA, 1 = from user
-                time: messageDate.getTime(),
-                sent_time: messageDate.toISOString(),
-                from_id: channel.providerChannelId, // OA ID
-                from_display_name: channel.name,
-                from_avatar: '',
-                to_id: String(userId),
-                to_display_name: customer.fullName || 'Unknown User',
-                to_avatar: customer.avatarUrl || '',
-                type: 'text',
-                message: messageContent
-            };
-
-        } catch (error) {
-            console.error('❌ Error handling outgoing message:', error);
-            console.error('Error stack:', error.stack);
         }
     }
 
@@ -648,7 +501,7 @@ class ZaloMessageController {
                     });
 
                     if (customer) {
-                        const conversation = await prisma.conversations.findFirst({
+                        const conversation = await prisma.conversation.findFirst({
                             where: {
                                 channelId: channel.id,
                                 customerId: customer.id,
@@ -801,7 +654,7 @@ class ZaloMessageController {
                     });
 
                     if (customer) {
-                        const conversation = await prisma.conversations.findFirst({
+                        const conversation = await prisma.conversation.findFirst({
                             where: {
                                 channelId: channel.id,
                                 customerId: customer.id,
