@@ -231,7 +231,7 @@ class ZaloMessageController {
             attachments
         };
 
-        emitNewMessage(userId, socketMessage);
+        emitNewMessage(conversation.id, socketMessage);
         emitConversationUpdate(channel.groupId, {
             id: conversation.id,
             name: conversation.customers.fullName,
@@ -343,7 +343,7 @@ class ZaloMessageController {
                     message: messageContent,
                     attachments
                 };
-                emitNewMessage(userId, socketMessage);
+                emitNewMessage(conversation.id, socketMessage);
                 emitConversationUpdate(channel.groupId, {
                     id: conversation.id,
                     name: conversation.customers.fullName,
