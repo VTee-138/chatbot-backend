@@ -40,7 +40,6 @@ class conversationService {
         const response = await axios.get(url, {
             headers: { access_token: accessToken },
         });
-        console.log(response.data.data[0]);
         // Kiểm tra lỗi từ Zalo
         if (response.data.error !== 0) {
             throw new Error(`Zalo API error: ${response.data.message}`);

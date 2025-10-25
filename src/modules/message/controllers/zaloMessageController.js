@@ -153,7 +153,7 @@ class ZaloMessageController {
         const { sender, recipient, message, timestamp } = payload;
         let messageSentDate = timestamp ? new Date(Number(timestamp)) : new Date();
         let providerMessageId = message.msg_id;
-
+        let allChannels = await channelModel.getAllChannelByProviderId('zalo', providerId);
         // Find or create conversation
         let conversation = await prisma.conversation.findFirst({
             where: {
@@ -166,8 +166,7 @@ class ZaloMessageController {
             }
         });
         if (!conversation) {
-            // Convert timestamp to Date properly
-            let allChannels = await channelModel.getAllChannelByProviderId('zalo', providerId);
+
             //sau nay se can sua lai neu kh lay duoc thi phai doi sang channel khac
             let accessToken = zaloOauthService.getValidAccessToken(allChannels[0].id, this.appId, this.appSecret)
             let customerData = await zaloAPIService.getZaloUserDetail(accessToken, providerCustomerId)
@@ -192,9 +191,8 @@ class ZaloMessageController {
                 providerMessageId
             }
         });
-        let newMessage = null;
         if (!checkMessage) {
-            newMessage = await prisma.message.create({
+            checkMessage = await prisma.message.create({
                 data: {
                     conversationId: conversation.id,
                     senderId: providerCustomerId,// 0 là từ OA gửi, 1 là khách gửi
@@ -237,8 +235,8 @@ class ZaloMessageController {
             emitConversationUpdate(channel.groupId, {
                 id: conversation.id,
                 name: conversation.customers.fullName,
-                subtitle: newMessage.content || '---',
-                unread: newMessage.src === 1 ? 1 : 0, // src = 1 là từ customer (chưa đọc)
+                subtitle: checkMessage.content || '---',
+                unread: checkMessage.src === 1 ? 1 : 0, // src = 1 là từ customer (chưa đọc)
                 avatarUrl: conversation.customers.avatarUrl,
                 messages: [],
                 customerId: conversation.customerId,
@@ -267,6 +265,8 @@ class ZaloMessageController {
             const { sender, recipient, message, timestamp } = payload;
             let messageSentDate = timestamp ? new Date(Number(timestamp)) : new Date();
             let providerMessageId = message.msg_id;
+            let allChannels = await channelModel.getAllChannelByProviderId('zalo', providerId);
+
 
             // Find or create conversation
             let conversation = await prisma.conversation.findFirst({
@@ -280,8 +280,6 @@ class ZaloMessageController {
                 }
             });
             if (!conversation) {
-                // Convert timestamp to Date properly
-                let allChannels = await channelModel.getFirstChannel('zalo', providerId);
                 let accessToken = zaloOauthService.getValidAccessToken(allChannels[0].id, this.appId, this.appSecret)
                 let customerData = await zaloAPIService.getZaloUserDetail(accessToken, providerCustomerId)
                 conversation = await conversationModels.createZaloConversation(providerId, providerCustomerId, messageSentDate, customerData)
@@ -305,10 +303,9 @@ class ZaloMessageController {
                     providerMessageId
                 }
             });
-            let newMessage = null;
             //đoạn này chưa xử lí được tin nhắn do ai gửi
             if (!checkMessage) {
-                newMessage = await prisma.message.create({
+                checkMessage = await prisma.message.create({
                     data: {
                         conversationId: conversation.id,
                         senderId: providerCustomerId,// 0 là từ OA gửi, 1 là khách gửi
@@ -351,8 +348,8 @@ class ZaloMessageController {
                     emitConversationUpdate(channel.groupId, {
                         id: conversation.id,
                         name: conversation.customers.fullName,
-                        subtitle: newMessage.content || '---',
-                        unread: newMessage.src === 1 ? 1 : 0, // src = 1 là từ customer (chưa đọc)
+                        subtitle: checkMessage.content || '---',
+                        unread: checkMessage.src === 1 ? 1 : 0, // src = 1 là từ customer (chưa đọc)
                         avatarUrl: conversation.customers.avatarUrl,
                         messages: [],
                         customerId: conversation.customerId,
