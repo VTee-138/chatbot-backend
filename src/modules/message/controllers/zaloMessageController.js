@@ -194,13 +194,15 @@ class ZaloMessageController {
         let newMessage = null;
         if (!checkMessage) {
             newMessage = await prisma.message.create({
-                conversationId: conversation.id,
-                senderId: providerCustomerId,// 0 là từ OA gửi, 1 là khách gửi
-                senderType: 'human',  // chỉ đặt type cho tin nhắn gửi từ OA
-                src: 1,
-                content: message.text || '',
-                messageType,
-                createdAt: messageSentDate,
+                data: {
+                    conversationId: conversation.id,
+                    senderId: providerCustomerId,// 0 là từ OA gửi, 1 là khách gửi
+                    senderType: 'human',  // chỉ đặt type cho tin nhắn gửi từ OA
+                    src: 1,
+                    content: message.text || '',
+                    messageType,
+                    createdAt: messageSentDate,
+                }
             })
         }
 
@@ -303,13 +305,15 @@ class ZaloMessageController {
             //đoạn này chưa xử lí được tin nhắn do ai gửi
             if (!checkMessage) {
                 newMessage = await prisma.message.create({
-                    conversationId: conversation.id,
-                    senderId: providerId,// 0 là từ OA gửi, 1 là khách gửi
-                    senderType: 'human',  // chỉ đặt type cho tin nhắn gửi từ OA
-                    src: 0,
-                    content: message.text || '',
-                    messageType,
-                    createdAt: messageSentDate,
+                    data: {
+                        conversationId: conversation.id,
+                        senderId: providerCustomerId,// 0 là từ OA gửi, 1 là khách gửi
+                        senderType: 'human',  // chỉ đặt type cho tin nhắn gửi từ OA
+                        src: 1,
+                        content: message.text || '',
+                        messageType,
+                        createdAt: messageSentDate,
+                    }
                 })
             }
 
