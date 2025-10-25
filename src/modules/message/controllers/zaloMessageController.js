@@ -200,7 +200,7 @@ class ZaloMessageController {
                 src: 1,
                 content: message.text || '',
                 messageType,
-                createdAt: new Date(msg.time),
+                createdAt: messageSentDate,
             })
         }
 
@@ -309,7 +309,7 @@ class ZaloMessageController {
                     src: 0,
                     content: message.text || '',
                     messageType,
-                    createdAt: new Date(msg.time),
+                    createdAt: messageSentDate,
                 })
             }
 
