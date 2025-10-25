@@ -202,6 +202,7 @@ class ZaloMessageController {
                     content: message.text || '',
                     messageType,
                     createdAt: messageSentDate,
+                    providerMessageId,
                 }
             })
         }
@@ -313,6 +314,7 @@ class ZaloMessageController {
                         content: message.text || '',
                         messageType,
                         createdAt: messageSentDate,
+                        providerMessageId,
                     }
                 })
             }
