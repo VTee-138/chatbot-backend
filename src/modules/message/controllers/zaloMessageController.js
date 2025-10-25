@@ -167,8 +167,9 @@ class ZaloMessageController {
         });
         if (!conversation) {
             // Convert timestamp to Date properly
-            let randomChannel = await channelModel.getFirstChannel('zalo', providerId);
-            let accessToken = zaloOauthService.getValidAccessToken(randomChannel.id, this.appId, this.appSecret)
+            let allChannels = await channelModel.getAllChannelByProviderId('zalo', providerId);
+            //sau nay se can sua lai neu kh lay duoc thi phai doi sang channel khac
+            let accessToken = zaloOauthService.getValidAccessToken(allChannels[0].id, this.appId, this.appSecret)
             let customerData = await zaloAPIService.getZaloUserDetail(accessToken, providerCustomerId)
             conversation = await conversationModels.createZaloConversation(providerId, providerCustomerId, messageSentDate, customerData)
 
@@ -232,26 +233,28 @@ class ZaloMessageController {
         };
 
         emitNewMessage(conversation.id, socketMessage);
-        emitConversationUpdate(channel.groupId, {
-            id: conversation.id,
-            name: conversation.customers.fullName,
-            subtitle: newMessage.content || '---',
-            unread: newMessage.src === 1 ? 1 : 0, // src = 1 là từ customer (chưa đọc)
-            avatarUrl: conversation.customers.avatarUrl,
-            messages: [],
-            customerId: conversation.customerId,
-            assigneeId: conversation.assigneeId,
-            createdAt: conversation.createdAt,
-            updatedAt: conversation.updatedAt,
-            chatbotEnabled: conversation.chatbotEnabled,
-            providerConversationId: conversation.providerConversationId,
-            lastMessageAt: conversation.lastMessageAt,
-            providerAdId: conversation.providerAdId,
-            providerCustomerId: conversation.providerCustomerId,
-            provider: conversation.provider,
-            providerId: conversation.providerId,
-            customer: conversation.customers
-        });
+        allChannels.forEach(channel => {
+            emitConversationUpdate(channel.groupId, {
+                id: conversation.id,
+                name: conversation.customers.fullName,
+                subtitle: newMessage.content || '---',
+                unread: newMessage.src === 1 ? 1 : 0, // src = 1 là từ customer (chưa đọc)
+                avatarUrl: conversation.customers.avatarUrl,
+                messages: [],
+                customerId: conversation.customerId,
+                assigneeId: conversation.assigneeId,
+                createdAt: conversation.createdAt,
+                updatedAt: conversation.updatedAt,
+                chatbotEnabled: conversation.chatbotEnabled,
+                providerConversationId: conversation.providerConversationId,
+                lastMessageAt: conversation.lastMessageAt,
+                providerAdId: conversation.providerAdId,
+                providerCustomerId: conversation.providerCustomerId,
+                provider: conversation.provider,
+                providerId: conversation.providerId,
+                customer: conversation.customers
+            });
+        })
         console.log('✅ Conversation update emitted successfully');
     }
 
@@ -278,8 +281,8 @@ class ZaloMessageController {
             });
             if (!conversation) {
                 // Convert timestamp to Date properly
-                let randomChannel = await channelModel.getFirstChannel('zalo', providerId);
-                let accessToken = zaloOauthService.getValidAccessToken(randomChannel.id, this.appId, this.appSecret)
+                let allChannels = await channelModel.getFirstChannel('zalo', providerId);
+                let accessToken = zaloOauthService.getValidAccessToken(allChannels[0].id, this.appId, this.appSecret)
                 let customerData = await zaloAPIService.getZaloUserDetail(accessToken, providerCustomerId)
                 conversation = await conversationModels.createZaloConversation(providerId, providerCustomerId, messageSentDate, customerData)
 
@@ -344,26 +347,28 @@ class ZaloMessageController {
                     attachments
                 };
                 emitNewMessage(conversation.id, socketMessage);
-                emitConversationUpdate(channel.groupId, {
-                    id: conversation.id,
-                    name: conversation.customers.fullName,
-                    subtitle: newMessage.content || '---',
-                    unread: newMessage.src === 1 ? 1 : 0, // src = 1 là từ customer (chưa đọc)
-                    avatarUrl: conversation.customers.avatarUrl,
-                    messages: [],
-                    customerId: conversation.customerId,
-                    assigneeId: conversation.assigneeId,
-                    createdAt: conversation.createdAt,
-                    updatedAt: conversation.updatedAt,
-                    chatbotEnabled: conversation.chatbotEnabled,
-                    providerConversationId: conversation.providerConversationId,
-                    lastMessageAt: conversation.lastMessageAt,
-                    providerAdId: conversation.providerAdId,
-                    providerCustomerId: conversation.providerCustomerId,
-                    provider: conversation.provider,
-                    providerId: conversation.providerId,
-                    customer: conversation.customers
-                });
+                allChannels.forEach(channel => {
+                    emitConversationUpdate(channel.groupId, {
+                        id: conversation.id,
+                        name: conversation.customers.fullName,
+                        subtitle: newMessage.content || '---',
+                        unread: newMessage.src === 1 ? 1 : 0, // src = 1 là từ customer (chưa đọc)
+                        avatarUrl: conversation.customers.avatarUrl,
+                        messages: [],
+                        customerId: conversation.customerId,
+                        assigneeId: conversation.assigneeId,
+                        createdAt: conversation.createdAt,
+                        updatedAt: conversation.updatedAt,
+                        chatbotEnabled: conversation.chatbotEnabled,
+                        providerConversationId: conversation.providerConversationId,
+                        lastMessageAt: conversation.lastMessageAt,
+                        providerAdId: conversation.providerAdId,
+                        providerCustomerId: conversation.providerCustomerId,
+                        provider: conversation.provider,
+                        providerId: conversation.providerId,
+                        customer: conversation.customers
+                    });
+                })
                 console.log('✅ Conversation update emitted successfully');
 
             } catch (socketError) {

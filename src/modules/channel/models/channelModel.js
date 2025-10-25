@@ -18,6 +18,14 @@ class ConversationModel {
             },
         });
     }
+    async getAllChannelByProviderId(provider, providerId) {
+        return await prisma.channel.findMany({
+            where: {
+                provider,
+                providerId
+            },
+        });
+    }
 }
 
 module.exports = new ConversationModel();
