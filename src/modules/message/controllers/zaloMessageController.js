@@ -191,8 +191,9 @@ class ZaloMessageController {
                 providerMessageId
             }
         });
+        let newMessage = null;
         if (!checkMessage) {
-            await prisma.message.create({
+            newMessage = await prisma.message.create({
                 conversationId: conversation.id,
                 senderId: providerCustomerId,// 0 là từ OA gửi, 1 là khách gửi
                 senderType: 'human',  // chỉ đặt type cho tin nhắn gửi từ OA
@@ -226,20 +227,27 @@ class ZaloMessageController {
             message: messageContent,
             attachments
         };
+
         emitNewMessage(userId, socketMessage);
         emitConversationUpdate(channel.groupId, {
             id: conversation.id,
-            channelId: channel.id,
-            customerId: customer.id,
-            customer: {
-                id: customer.id,
-                fullName: customer.fullName,
-                avatarUrl: customer.avatarUrl
-            },
-            lastMessage: messageContent.substring(0, 100),
-            lastMessageAt: messageDate,
-            status: conversation.status,
-            unreadCount: 1 // TODO: Calculate actual unread count
+            name: conversation.customers.fullName,
+            subtitle: newMessage.content || '---',
+            unread: newMessage.src === 1 ? 1 : 0, // src = 1 là từ customer (chưa đọc)
+            avatarUrl: conversation.customers.avatarUrl,
+            messages: [],
+            customerId: conversation.customerId,
+            assigneeId: conversation.assigneeId,
+            createdAt: conversation.createdAt,
+            updatedAt: conversation.updatedAt,
+            chatbotEnabled: conversation.chatbotEnabled,
+            providerConversationId: conversation.providerConversationId,
+            lastMessageAt: conversation.lastMessageAt,
+            providerAdId: conversation.providerAdId,
+            providerCustomerId: conversation.providerCustomerId,
+            provider: conversation.provider,
+            providerId: conversation.providerId,
+            customer: conversation.customers
         });
         console.log('✅ Conversation update emitted successfully');
     }
@@ -291,9 +299,10 @@ class ZaloMessageController {
                     providerMessageId
                 }
             });
+            let newMessage = null;
             //đoạn này chưa xử lí được tin nhắn do ai gửi
             if (!checkMessage) {
-                await prisma.message.create({
+                newMessage = await prisma.message.create({
                     conversationId: conversation.id,
                     senderId: providerId,// 0 là từ OA gửi, 1 là khách gửi
                     senderType: 'human',  // chỉ đặt type cho tin nhắn gửi từ OA
@@ -333,17 +342,23 @@ class ZaloMessageController {
                 emitNewMessage(userId, socketMessage);
                 emitConversationUpdate(channel.groupId, {
                     id: conversation.id,
-                    channelId: channel.id,
-                    customerId: customer.id,
-                    customer: {
-                        id: customer.id,
-                        fullName: customer.fullName,
-                        avatarUrl: customer.avatarUrl
-                    },
-                    lastMessage: messageContent.substring(0, 100),
-                    lastMessageAt: messageDate,
-                    status: conversation.status,
-                    unreadCount: 1 // TODO: Calculate actual unread count
+                    name: conversation.customers.fullName,
+                    subtitle: newMessage.content || '---',
+                    unread: newMessage.src === 1 ? 1 : 0, // src = 1 là từ customer (chưa đọc)
+                    avatarUrl: conversation.customers.avatarUrl,
+                    messages: [],
+                    customerId: conversation.customerId,
+                    assigneeId: conversation.assigneeId,
+                    createdAt: conversation.createdAt,
+                    updatedAt: conversation.updatedAt,
+                    chatbotEnabled: conversation.chatbotEnabled,
+                    providerConversationId: conversation.providerConversationId,
+                    lastMessageAt: conversation.lastMessageAt,
+                    providerAdId: conversation.providerAdId,
+                    providerCustomerId: conversation.providerCustomerId,
+                    provider: conversation.provider,
+                    providerId: conversation.providerId,
+                    customer: conversation.customers
                 });
                 console.log('✅ Conversation update emitted successfully');
 
