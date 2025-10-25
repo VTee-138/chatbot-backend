@@ -3,7 +3,9 @@ const router = express.Router();
 const GroupController = require("../controllers/groupsController");
 const { schemaValidate } = require("../middleware/validate");
 const groupValidator = require("../validators/groupsValidators");
+const { authenticate } = require("../middleware/auth");
 
+router.use(authenticate);
 // Invitations
 router.post(
   "/invitations/accept",
@@ -53,5 +55,9 @@ router.delete(
   schemaValidate(groupValidator.DeleteMemberSchema, "body"),
   GroupController.deleteMember
 );
+
+// Lấy tất cả nhóm mà user đang tham gia
+router.get('/mine', GroupController.getMyGroups);
+
 
 module.exports = router;

@@ -3,7 +3,9 @@ const router = express.Router();
 const OrderController = require("../controllers/orderController");
 const OrderValidators = require("../validators/orderValidators");
 const { schemaValidate } = require("../middleware/validate");
+const { authenticate } = require("../middleware/auth");
 
+router.use(authenticate);
 router.post(
     "/plan-renewal",
     schemaValidate(OrderValidators.PlanRenewalSchema, "body"),

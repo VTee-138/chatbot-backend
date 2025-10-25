@@ -1,6 +1,7 @@
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const config = require('./index');
+const zaloMessageService = require('../modules/message/services/zaloMessageService');
 
 let io;
 
@@ -216,6 +217,8 @@ function initSocket(httpServer) {
       }
     });
 
+    socket.on('receive_new_message', receiveNewMessage)
+
     // Handle disconnect
     socket.on('disconnect', (reason) => {
       SocketLogger.info('disconnect', `Client disconnected`, {
@@ -266,7 +269,7 @@ function emitNewMessage(conversationId, message) {
     }
 
     const io = getIO();
-    const roomName = `conversation_${conversationId}`; // conversationId is actually userId
+    const roomName = `conversation_${conversationId}`;
 
     SocketLogger.info('emit', `Emitting new_message`, {
       roomName,
@@ -313,6 +316,27 @@ function emitConversationUpdate(groupId, conversation) {
     SocketLogger.info('success', `Conversation update emitted to ${roomName}`);
   } catch (error) {
     SocketLogger.error('emit', 'Failed to emit conversation update', error);
+  }
+}
+
+async function receiveNewMessage({ groupId, provider, providerId, providerCustomerId, message }) {
+  try {
+    if (!groupId) {
+      SocketLogger.error('join', 'join_group called without groupId');
+      socket.emit('error', {
+        event: 'join_group',
+        message: 'groupId is required'
+      });
+      return;
+    }
+    await zaloMessageService.sendZaloMessage(groupId, providerId, providerCustomerId, message)
+  } catch (error) {
+    SocketLogger.error('join', `Failed to join group ${groupId}`, error);
+    socket.emit('error', {
+      event: 'join_group',
+      message: 'Failed to join group',
+      error: error.message
+    });
   }
 }
 

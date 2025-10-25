@@ -8,9 +8,7 @@ if (process.env.NODE_ENV === 'production') {
   // In development, use a global variable to preserve the instance
   // across hot reloads
   if (!global.prisma) {
-    global.prisma = new PrismaClient({
-      log: ['query', 'info', 'warn', 'error'],
-    });
+    global.prisma = new PrismaClient();
   }
   prisma = global.prisma;
 }

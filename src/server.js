@@ -3,7 +3,6 @@ const cors = require('cors');
 const helmet = require('helmet');
 const path = require("path");
 const morgan = require('morgan');
-const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 const { checkRedis } = require('./utils/checkConfiguration')
 const config = require('./config');
@@ -11,14 +10,13 @@ const http = require("http");
 const { Server } = require('socket.io');
 const { notFound, requestLogger } = require('./middleware');
 const { specs, swaggerUi, swaggerOptions } = require('./config/swagger');
-const session = require('express-session')
-const { RedisStore } = require('connect-redis')
-const redis = require('./config/redis');
 const router = require('./routes/index');
-const { sendMessage } = require('./controllers/chatbotController');
 const { generalLimiter } = require('./middleware/auth');
 const errorHandler = require('./middleware/errorHandler');
 const webhookRoutes = require('./webhooks');
+const { initSocket } = require('./config/socket');
+
+
 const app = express();
 app.use(express.static(path.join(__dirname, "../public")))
 // Rate limiting
@@ -97,14 +95,14 @@ app.use(cors({
 // }))
 
 // Logging
-if (config.NODE_ENV === 'development') {
-  app.use(morgan('dev'));
-} else {
-  app.use(morgan('combined'));
-}
+// if (config.NODE_ENV === 'development') {
+//   app.use(morgan('dev'));
+// } else {
+//   app.use(morgan('combined'));
+// }
 
 // Custom request logger
-app.use(requestLogger);
+// app.use(requestLogger);
 // API Documentation with Swagger
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, swaggerOptions));
 
@@ -134,6 +132,8 @@ app.use(notFound);
 // Global error handler
 app.use(errorHandler);
 
+const server = http.createServer(app);
+initSocket(server)
 // Start server
 const startServer = async () => {
   try {
@@ -144,32 +144,6 @@ const startServer = async () => {
     console.log("✅ Database connected successfully");
     checkRedis();
     checkNodeMailer();
-    const server = http.createServer(app);
-    const io = new Server(server, {
-      cors: {
-        origin: "*",
-        methods: ["GET", "POST"],
-      },
-    });
-    io.on("connection", (socket) => {
-      console.log("Client connected:", socket.id);
-      socket.on("join_room", ({ user_id }) => {
-        if (!user_id) return;
-        socket.join(user_id);
-        console.log(`Socket ${socket.id} joined room ${user_id}`);
-      });
-      socket.on("send_message", ({ user_id, message }) => {
-        if (!user_id || !message) {
-          socket.emit("error", { msg: "Thiếu user_id hoặc message" });
-          return;
-        }
-        console.log(`Tin nhắn từ ${user_id}: ${message}`);
-        io.to(user_id).emit("received", { msg: "Đã nhận", user_id, message });
-      });
-      socket.on("disconnect", () => {
-        console.log("Client disconnected:", socket.id);
-      });
-    });
     server.listen(config.PORT, () => {
       console.log(`🚀 Server running on port ${config.PORT}`);
       console.log(`📍 Environment: ${config.NODE_ENV}`);
