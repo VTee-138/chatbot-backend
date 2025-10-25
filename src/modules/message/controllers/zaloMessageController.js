@@ -8,6 +8,7 @@ const { ErrorResponse, getProviderAppKey } = require('../../../utils/constant');
 const zaloMessageService = require('../services/zaloMessageService');
 const { emitNewMessage, emitConversationUpdate } = require('../../../config/socket');
 const fs = require('fs');
+const { url } = require('inspector');
 
 class ZaloMessageController {
     constructor() {
@@ -210,24 +211,29 @@ class ZaloMessageController {
         let messageContent = '';
         let attachments = [];
         messageContent = message.text;
-        if (message?.attachment) {
-            attachments.push(message.attachment)
+        if (message?.attachments) {
+            attachments = (message.attachments)
         }
-
         // Format message để khớp với ZaloSocketMessage interface ở frontend
         const socketMessage = {
+            id: payload.message.msg_id,
+            fromMe: false, // src = 0 là từ OA (từ tôi)
+            text: messageContent,
+            time: toHourMinute(messageSentDate.getTime()),
             messageId: payload.message.msg_id,
-            src: 1, // 1 = from user (customer), 0 = from OA
+            src: 1,
             sentTime: messageSentDate.getTime(),
             fromId: providerCustomerId,
             fromDisplayName: conversation.customers.fullName || 'Unknown User',
             fromAvatar: conversation.customers.avatarUrl || '',
-            toId: providerId, // OA ID
+            toId: providerId,
             toDisplayName: null,
             toAvatar: null,
             type: messageType,
-            message: messageContent,
-            attachments
+            attachment: {
+                url: attachments.length > 0 ? attachments[0].payload.url : null,
+                fileType: attachments.length > 0 ? attachments[0].type : null,
+            },
         };
 
         emitNewMessage(conversation.id, socketMessage);
@@ -323,25 +329,31 @@ class ZaloMessageController {
             let messageContent = '';
             let attachments = [];
             messageContent = message.text;
-            if (message?.attachment) {
-                attachments.push(message.attachment)
+            if (message?.attachments) {
+                attachments = (message.attachments)
             }
 
             try {
                 // Format message để khớp với ZaloSocketMessage interface ở frontend
                 const socketMessage = {
+                    id: payload.message.msg_id,
+                    fromMe: true, // src = 0 là từ OA (từ tôi)
+                    text: messageContent,
+                    time: toHourMinute(messageSentDate.getTime()),
                     messageId: payload.message.msg_id,
-                    src: 1, // 1 = from user (customer), 0 = from OA
+                    src: 0,
                     sentTime: messageSentDate.getTime(),
                     fromId: providerId,
                     fromDisplayName: null,
                     fromAvatar: null,
-                    toId: providerCustomerId, // OA ID
+                    toId: providerCustomerId,
                     toDisplayName: conversation.customers.fullName || 'Unknown User',
                     toAvatar: conversation.customers.avatarUrl || '',
                     type: messageType,
-                    message: messageContent,
-                    attachments
+                    attachment: {
+                        url: attachments.length > 0 ? attachments[0].payload.url : null,
+                        fileType: attachments.length > 0 ? attachments[0].type : null
+                    }
                 };
                 emitNewMessage(conversation.id, socketMessage);
                 allChannels.forEach(channel => {
