@@ -79,17 +79,6 @@ class ZaloMessageController {
                 providerCustomerId = null;
             }
 
-            console.log('📋 Parsed webhook data:', {
-                event_name,
-                oa_id,
-                timestamp,
-                has_sender: !!payload.sender,
-                has_recipient: !!payload.recipient,
-                has_message: !!payload.message,
-                sender_id: payload.sender?.id,
-                recipient_id: payload.recipient?.id
-            });
-
             if (!oa_id) {
                 console.log('⚠️ Missing oa_id in webhook payload');
                 // Try to extract from other fields
