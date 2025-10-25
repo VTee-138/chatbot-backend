@@ -365,27 +365,7 @@ class ZaloMessageController {
             }
 
         } catch (error) {
-            console.error('❌ Error handling incoming message:', error);
-            console.error('Error stack:', error.stack);
-
-            // Emit error event to monitoring/logging
-            try {
-                const { emitNotification } = require('../config/socket');
-                if (channel.groupId) {
-                    emitNotification('system', {
-                        type: 'error',
-                        title: 'Webhook Processing Error',
-                        message: `Failed to process incoming message: ${error.message}`,
-                        timestamp: new Date().toISOString(),
-                        details: {
-                            channelId: channel.id,
-                            error: error.message
-                        }
-                    });
-                }
-            } catch (notifyError) {
-                console.error('❌ Failed to emit error notification:', notifyError);
-            }
+            throw error;
         }
     }
 
