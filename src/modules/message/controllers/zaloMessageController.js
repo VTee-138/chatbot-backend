@@ -221,8 +221,8 @@ class ZaloMessageController {
             src: 1, // 1 = from user (customer), 0 = from OA
             sentTime: messageSentDate.getTime(),
             fromId: providerCustomerId,
-            fromDisplayName: conversation.customer.fullName || 'Unknown User',
-            fromAvatar: conversation.customer.avatarUrl || '',
+            fromDisplayName: conversation.customers.fullName || 'Unknown User',
+            fromAvatar: conversation.customers.avatarUrl || '',
             toId: providerId, // OA ID
             toDisplayName: null,
             toAvatar: null,
@@ -337,8 +337,8 @@ class ZaloMessageController {
                     fromDisplayName: null,
                     fromAvatar: null,
                     toId: providerCustomerId, // OA ID
-                    toDisplayName: conversation.customer.fullName || 'Unknown User',
-                    toAvatar: conversation.customer.avatarUrl || '',
+                    toDisplayName: conversation.customers.fullName || 'Unknown User',
+                    toAvatar: conversation.customers.avatarUrl || '',
                     type: messageType,
                     message: messageContent,
                     attachments
