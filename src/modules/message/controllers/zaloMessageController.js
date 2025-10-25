@@ -118,7 +118,7 @@ class ZaloMessageController {
                 case 'oa_send_file':
                 case 'oa_send_list':
                     console.log('📤 Handling outgoing message:', event_name);
-                    await this.handleOutgoingMessage(oa_id, providerCustomerId, event_name.replace('oa_send', ''), payload);
+                    await this.handleOutgoingMessage(oa_id, providerCustomerId, event_name.replace('oa_send_', ''), payload);
                     break;
 
                 case 'user_received_message':
