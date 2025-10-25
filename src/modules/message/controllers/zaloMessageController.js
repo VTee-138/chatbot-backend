@@ -6,7 +6,8 @@ const channelModel = require('../../channel/models/channelModel');
 const zaloOauthService = require('../../channel/services/zalo/zaloOauthService');
 const { ErrorResponse, getProviderAppKey } = require('../../../utils/constant');
 const zaloMessageService = require('../services/zaloMessageService');
-
+const { emitNewMessage, emitConversationUpdate } = require('../../../config/socket');
+const fs = require('fs');
 
 class ZaloMessageController {
     constructor() {
@@ -40,7 +41,7 @@ class ZaloMessageController {
     //     },
     //     "timestamp": "154390853474"
     // }
-    async handleZaloWebhook(req, res) {
+    async handleZaloWebhook(req, res, next) {
         // Respond immediately to Zalo
         res.status(200).send('OK');
         try {
@@ -140,7 +141,7 @@ class ZaloMessageController {
             }
 
         } catch (error) {
-            console.error('❌ Error handling Zalo webhook:', error);
+            next(error);
         }
     }
 
@@ -148,131 +149,99 @@ class ZaloMessageController {
      * Handle incoming message from user
      */
     async handleIncomingMessage(providerId, providerCustomerId, messageType, payload) {
-        try {
-            // Parse Zalo webhook payload
-            const { sender, recipient, message, timestamp } = payload;
-            let messageSentDate = timestamp ? new Date(Number(timestamp)) : new Date();
-            let providerMessageId = message.msg_id;
+        // Parse Zalo webhook payload
+        const { sender, recipient, message, timestamp } = payload;
+        let messageSentDate = timestamp ? new Date(Number(timestamp)) : new Date();
+        let providerMessageId = message.msg_id;
 
-            // Find or create conversation
-            let conversation = await prisma.conversations.findFirst({
-                where: {
-                    providerCustomerId,
-                    providerId,
-                    provider: 'zalo'
-                },
-                include: {
-                    customers: true,
-                }
-            });
-            if (!conversation) {
-                // Convert timestamp to Date properly
-                let randomChannel = await channelModel.getFirstChannel('zalo', providerId);
-                let accessToken = zaloOauthService.getValidAccessToken(randomChannel.id, this.appId, this.appSecret)
-                let customerData = await zaloAPIService.getZaloUserDetail(accessToken, providerCustomerId)
-                conversation = await conversationModels.createZaloConversation(providerId, providerCustomerId, messageSentDate, customerData)
-
-                // // Emit new conversation to group
-                // const { emitNewConversation } = require('../config/socket');
-                // emitNewConversation(channel.groupId, {
-                //     id: conversation.id,
-                //     channelId: channel.id,
-                //     customer: {
-                //         id: customer.id,
-                //         fullName: customer.fullName
-                //     },
-                //     status: conversation.status,
-                //     createdAt: conversation.createdAt
-                // });
+        // Find or create conversation
+        let conversation = await prisma.conversations.findFirst({
+            where: {
+                providerCustomerId,
+                providerId,
+                provider: 'zalo'
+            },
+            include: {
+                customers: true,
             }
-            let checkMessage = await prisma.message.findFirst({
-                where: {
-                    conversationId: conversation.id,
-                    providerMessageId
-                }
-            });
-            if (!checkMessage) {
-                await prisma.message.create({
-                    conversationId: conversation.id,
-                    senderId: providerCustomerId,// 0 là từ OA gửi, 1 là khách gửi
-                    senderType: 'human',  // chỉ đặt type cho tin nhắn gửi từ OA
-                    src: 1,
-                    content: message.text || '',
-                    messageType,
-                    createdAt: new Date(msg.time),
-                })
-            }
+        });
+        if (!conversation) {
+            // Convert timestamp to Date properly
+            let randomChannel = await channelModel.getFirstChannel('zalo', providerId);
+            let accessToken = zaloOauthService.getValidAccessToken(randomChannel.id, this.appId, this.appSecret)
+            let customerData = await zaloAPIService.getZaloUserDetail(accessToken, providerCustomerId)
+            conversation = await conversationModels.createZaloConversation(providerId, providerCustomerId, messageSentDate, customerData)
 
-            // Parse message content
-            let messageContent = '';
-            let attachments = [];
-            messageContent = message.text;
-            if (message?.attachment) {
-                attachments.push(message.attachment)
-            }
-            // Emit message via WebSocket with Zalo-compatible format
-            const { emitNewMessage, emitConversationUpdate } = require('../config/socket');
-
-            try {
-                // Format message để khớp với ZaloSocketMessage interface ở frontend
-                const socketMessage = {
-                    messageId: payload.message.msg_id,
-                    src: 1, // 1 = from user (customer), 0 = from OA
-                    sentTime: messageSentDate.getTime(),
-                    fromId: providerCustomerId,
-                    fromDisplayName: conversation.customer.fullName || 'Unknown User',
-                    fromAvatar: conversation.customer.avatarUrl || '',
-                    toId: providerId, // OA ID
-                    toDisplayName: null,
-                    toAvatar: null,
-                    type: messageType,
-                    message: messageContent,
-                    attachments
-                };
-                emitNewMessage(userId, socketMessage);
-                emitConversationUpdate(channel.groupId, {
-                    id: conversation.id,
-                    channelId: channel.id,
-                    customerId: customer.id,
-                    customer: {
-                        id: customer.id,
-                        fullName: customer.fullName,
-                        avatarUrl: customer.avatarUrl
-                    },
-                    lastMessage: messageContent.substring(0, 100),
-                    lastMessageAt: messageDate,
-                    status: conversation.status,
-                    unreadCount: 1 // TODO: Calculate actual unread count
-                });
-                console.log('✅ Conversation update emitted successfully');
-
-            } catch (socketError) {
-                throw socketError
-            }
-
-        } catch (error) {
-            console.error('❌ Error handling incoming message:', error);
-            console.error('Error stack:', error.stack);
-
-            // Emit error event to monitoring/logging
-            try {
-                const { emitNotification } = require('../config/socket');
-                if (channel.groupId) {
-                    emitNotification('system', {
-                        type: 'error',
-                        title: 'Webhook Processing Error',
-                        message: `Failed to process incoming message: ${error.message}`,
-                        timestamp: new Date().toISOString(),
-                        details: {
-                            channelId: channel.id,
-                            error: error.message
-                        }
-                    });
-                }
-            } catch (notifyError) {
-                console.error('❌ Failed to emit error notification:', notifyError);
-            }
+            // // Emit new conversation to group
+            // const { emitNewConversation } = require('../config/socket');
+            // emitNewConversation(channel.groupId, {
+            //     id: conversation.id,
+            //     channelId: channel.id,
+            //     customer: {
+            //         id: customer.id,
+            //         fullName: customer.fullName
+            //     },
+            //     status: conversation.status,
+            //     createdAt: conversation.createdAt
+            // });
         }
+        let checkMessage = await prisma.message.findFirst({
+            where: {
+                conversationId: conversation.id,
+                providerMessageId
+            }
+        });
+        if (!checkMessage) {
+            await prisma.message.create({
+                conversationId: conversation.id,
+                senderId: providerCustomerId,// 0 là từ OA gửi, 1 là khách gửi
+                senderType: 'human',  // chỉ đặt type cho tin nhắn gửi từ OA
+                src: 1,
+                content: message.text || '',
+                messageType,
+                createdAt: new Date(msg.time),
+            })
+        }
+
+        // Parse message content
+        let messageContent = '';
+        let attachments = [];
+        messageContent = message.text;
+        if (message?.attachment) {
+            attachments.push(message.attachment)
+        }
+
+        // Format message để khớp với ZaloSocketMessage interface ở frontend
+        const socketMessage = {
+            messageId: payload.message.msg_id,
+            src: 1, // 1 = from user (customer), 0 = from OA
+            sentTime: messageSentDate.getTime(),
+            fromId: providerCustomerId,
+            fromDisplayName: conversation.customer.fullName || 'Unknown User',
+            fromAvatar: conversation.customer.avatarUrl || '',
+            toId: providerId, // OA ID
+            toDisplayName: null,
+            toAvatar: null,
+            type: messageType,
+            message: messageContent,
+            attachments
+        };
+        emitNewMessage(userId, socketMessage);
+        emitConversationUpdate(channel.groupId, {
+            id: conversation.id,
+            channelId: channel.id,
+            customerId: customer.id,
+            customer: {
+                id: customer.id,
+                fullName: customer.fullName,
+                avatarUrl: customer.avatarUrl
+            },
+            lastMessage: messageContent.substring(0, 100),
+            lastMessageAt: messageDate,
+            status: conversation.status,
+            unreadCount: 1 // TODO: Calculate actual unread count
+        });
+        console.log('✅ Conversation update emitted successfully');
     }
 
     /**
@@ -500,8 +469,6 @@ class ZaloMessageController {
 
                 console.log('✅ New conversation created for outgoing message:', conversation.id);
 
-                // Emit new conversation to group
-                const { emitNewConversation } = require('../config/socket');
                 emitNewConversation(channel.groupId, {
                     id: conversation.id,
                     channelId: channel.id,
@@ -532,58 +499,25 @@ class ZaloMessageController {
                 }
             });
 
-            // Emit via WebSocket with Zalo-compatible format
-            try {
-                const { emitNewMessage } = require('../config/socket');
-
-                // Format message để khớp với ZaloSocketMessage interface ở frontend
-                const socketMessage = {
-                    message_id: messageId,
-                    src: 0, // 0 = from OA, 1 = from user
-                    time: messageDate.getTime(),
-                    sent_time: messageDate.toISOString(),
-                    from_id: channel.providerChannelId, // OA ID
-                    from_display_name: channel.name,
-                    from_avatar: '',
-                    to_id: String(userId),
-                    to_display_name: customer.fullName || 'Unknown User',
-                    to_avatar: customer.avatarUrl || '',
-                    type: 'text',
-                    message: messageContent
-                };
-
-                // Emit to room based on userId (not conversation.id) for frontend compatibility
-                console.log('📡 Emitting outgoing message (NO DB) to userId:', userId);
-                //emitNewMessage(userId, socketMessage);
-                console.log('✅ Outgoing message socket event emitted successfully (real-time only)');
-
-            } catch (socketError) {
-                console.error('❌ Error emitting outgoing message socket event:', socketError);
-                // Don't throw - message should still be delivered
-            }
+            // Format message để khớp với ZaloSocketMessage interface ở frontend
+            const socketMessage = {
+                message_id: messageId,
+                src: 0, // 0 = from OA, 1 = from user
+                time: messageDate.getTime(),
+                sent_time: messageDate.toISOString(),
+                from_id: channel.providerChannelId, // OA ID
+                from_display_name: channel.name,
+                from_avatar: '',
+                to_id: String(userId),
+                to_display_name: customer.fullName || 'Unknown User',
+                to_avatar: customer.avatarUrl || '',
+                type: 'text',
+                message: messageContent
+            };
 
         } catch (error) {
             console.error('❌ Error handling outgoing message:', error);
             console.error('Error stack:', error.stack);
-
-            // Emit error event
-            try {
-                const { emitNotification } = require('../config/socket');
-                if (channel?.groupId) {
-                    emitNotification('system', {
-                        type: 'error',
-                        title: 'Webhook Processing Error',
-                        message: `Failed to process outgoing message: ${error.message}`,
-                        timestamp: new Date().toISOString(),
-                        details: {
-                            channelId: channel.id,
-                            error: error.message
-                        }
-                    });
-                }
-            } catch (notifyError) {
-                console.error('❌ Failed to emit error notification:', notifyError);
-            }
         }
     }
 
@@ -833,7 +767,6 @@ class ZaloMessageController {
 
             // Emit via socket for real-time update
             try {
-                const { emitNewMessage } = require('../config/socket');
 
                 const channel = await prisma.channels.findUnique({
                     where: { id: channelId },
@@ -900,7 +833,6 @@ class ZaloMessageController {
     }
     async getMessages(req, res, next) {
         try {
-            let count = 10
             const { conversationId, page = 0, groupId, provider, providerId } = req.query;
             const channel = await channelModel.getGroupChannel(groupId, provider, providerId);
             if (!channel) {
@@ -918,7 +850,6 @@ class ZaloMessageController {
                 conversationId,
                 accessToken,
                 parseInt(page),
-                parseInt(count)
             );
 
             res.json({
@@ -929,8 +860,9 @@ class ZaloMessageController {
             next(error)
         }
     }
-    async uploadImage(req, res) {
+    async uploadImage(req, res, next) {
         const filePath = req.file?.path;
+        const { userId, text } = req.body;
         try {
             const { groupId, provider, providerId } = req.body;
             const channel = await channelModel.getGroupChannel(groupId, provider, providerId);
@@ -942,7 +874,7 @@ class ZaloMessageController {
             if (!accessToken) throw new ErrorResponse('Kênh này cần phải được cấp quyền lại', 400);
             if (!filePath) throw new ErrorResponse('Không có file', 400);
 
-            const result = await zaloMessageService.uploadZaloImage(accessToken, filePath);
+            const result = await zaloMessageService.uploadZaloImage(accessToken, filePath, userId, text);
             res.json(result);
         } catch (error) {
             next(error)
@@ -954,6 +886,7 @@ class ZaloMessageController {
 
     async uploadFile(req, res, next) {
         const filePath = req.file?.path;
+        const { userId } = req.body;
         try {
             const { groupId, provider, providerId } = req.body;
             const channel = await channelModel.getGroupChannel(groupId, provider, providerId);
@@ -965,7 +898,7 @@ class ZaloMessageController {
             if (!accessToken) throw new ErrorResponse('Kênh này cần phải được cấp quyền lại', 400);
             if (!filePath) throw new ErrorResponse('Không có file', 400);
 
-            const result = await zaloMessageService.uploadZaloFile(accessToken, filePath);
+            const result = await zaloMessageService.uploadZaloFile(accessToken, filePath, userId);
             res.json(result);
         } catch (error) {
             next(error)
