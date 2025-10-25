@@ -183,9 +183,6 @@ function initSocket(httpServer) {
           roomName
         });
         SocketLogger.logRooms(socket, 'Current');
-
-        // Acknowledge
-        socket.emit('joined_conversation', { conversationId, success: true });
       } catch (error) {
         SocketLogger.error('join', `Failed to join conversation ${conversationId}`, error);
         socket.emit('error', {
@@ -270,7 +267,7 @@ function emitNewMessage(conversationId, message) {
 
     const io = getIO();
     const roomName = `conversation_${conversationId}`;
-
+    console.log("============" + message)
     SocketLogger.info('emit', `Emitting new_message`, {
       roomName,
       actualUserId: conversationId,
@@ -302,15 +299,8 @@ function emitConversationUpdate(groupId, conversation) {
       SocketLogger.error('emit', 'emitConversationUpdate: conversation is required');
       return;
     }
-
     const io = getIO();
     const roomName = `group_${groupId}`;
-
-    SocketLogger.info('emit', `Emitting conversation_updated`, {
-      roomName,
-      conversationId: conversation.id,
-      lastMessage: conversation.lastMessage?.substring(0, 50) + '...'
-    });
 
     io.to(roomName).emit('conversation_updated', conversation);
     SocketLogger.info('success', `Conversation update emitted to ${roomName}`);

@@ -9,6 +9,7 @@ const zaloMessageService = require('../services/zaloMessageService');
 const { emitNewMessage, emitConversationUpdate } = require('../../../config/socket');
 const fs = require('fs');
 const { url } = require('inspector');
+const { toHourMinute } = require('../../../utils/stringUtils');
 
 class ZaloMessageController {
     constructor() {
@@ -222,6 +223,7 @@ class ZaloMessageController {
             time: toHourMinute(messageSentDate.getTime()),
             messageId: payload.message.msg_id,
             src: 1,
+            conversationId: conversation.id,
             sentTime: messageSentDate.getTime(),
             fromId: providerCustomerId,
             fromDisplayName: conversation.customers.fullName || 'Unknown User',
@@ -314,9 +316,9 @@ class ZaloMessageController {
                 checkMessage = await prisma.message.create({
                     data: {
                         conversationId: conversation.id,
-                        senderId: providerCustomerId,// 0 là từ OA gửi, 1 là khách gửi
+                        senderId: providerId,// 0 là từ OA gửi, 1 là khách gửi
                         senderType: 'human',  // chỉ đặt type cho tin nhắn gửi từ OA
-                        src: 1,
+                        src: 0,
                         content: message.text || '',
                         messageType,
                         createdAt: messageSentDate,
@@ -342,6 +344,7 @@ class ZaloMessageController {
                     time: toHourMinute(messageSentDate.getTime()),
                     messageId: payload.message.msg_id,
                     src: 0,
+                    conversationId: conversation.id,
                     sentTime: messageSentDate.getTime(),
                     fromId: providerId,
                     fromDisplayName: null,
