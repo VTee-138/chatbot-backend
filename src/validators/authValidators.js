@@ -69,10 +69,14 @@ class AuthValidators {
                 "string.pattern.base": "Password phải có ít nhất 8 kí tự, gồm cả chữ và số"
             }),
         userName: Joi.string()
-            .pattern(/^[A-Za-z0-9_-]{5,200}$/)
+            .pattern(/^[A-Za-z0-9_-]+$/)
+            .min(5)
+            .max(200)
             .required()
             .messages({
                 "string.pattern.base": "Username không được chứa khoảng cách và ký tự đặc biệt",
+                "string.min": "Username tối thiểu là {#limit} ký tự",
+                "string.max": "Username tối đa là {#limit} ký tự",
                 "any.required": "Vui lòng nhập username"
             }),
         confirmPassword: Joi.string()
