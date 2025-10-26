@@ -1,5 +1,6 @@
 const prisma = require("../config/database");
 const Constants = require("../utils/constant");
+const { createUniqueId } = require("../utils/idGeneratorUtils");
 const { ErrorResponse } = Constants;
 class OrderService {
     static bankId = "VCB"
@@ -8,19 +9,24 @@ class OrderService {
         const { name, planId, groupId } = req.body;
         const userId = req.user.id;
 
-        const plan = await prisma.plans.findUnique({ where: { id: planId } });
+        const plan = await prisma.plan.findUnique({ where: { id: planId } });
         if (!plan) throw new ErrorResponse("Không tìm thấy plan", Constants.NOT_FOUND);
+        const orderCode = createUniqueId();
 
-        const order = await prisma.orders.create({
+        const order = await prisma.order.create({
             data: {
-                name,
-                planId,
-                groupId,
+                data: {
+                    name,
+                    planId,
+                    groupId,
+                    userId,
+                },
                 userId,
-            },
-            type: "plan_renewal",
-            status: "unpaid",
-            amount: plan.price
+                orderCode,
+                type: "plan_renewal",
+                status: "unpaid",
+                amount: plan.price
+            }
         });
 
         return {
@@ -35,19 +41,23 @@ class OrderService {
         const { name, planId, groupId } = req.body;
         const userId = req.user.id;
 
-        const plan = await prisma.plans.findUnique({ where: { id: planId } });
+        const plan = await prisma.plan.findUnique({ where: { id: planId } });
         if (!plan) throw new ErrorResponse("Không tìm thấy plan", Constants.NOT_FOUND);
-
-        const order = await prisma.orders.create({
+        const orderCode = createUniqueId();
+        const order = await prisma.order.create({
             data: {
-                name,
-                planId,
-                groupId,
+                data: {
+                    name,
+                    planId,
+                    groupId,
+                    userId,
+                },
                 userId,
-            },
-            type: "plan_purchase",
-            status: "unpaid",
-            amount: plan.price
+                orderCode,
+                type: "plan_purchase",
+                status: "unpaid",
+                amount: plan.price
+            }
         });
 
         return {
@@ -62,18 +72,22 @@ class OrderService {
         const { name, planId } = req.body;
         const userId = req.user.id;
 
-        const plan = await prisma.plans.findUnique({ where: { id: planId } });
+        const plan = await prisma.plan.findUnique({ where: { id: planId } });
         if (!plan) throw new ErrorResponse("Không tìm thấy plan", Constants.NOT_FOUND);
-
-        const order = await prisma.orders.create({
+        const orderCode = createUniqueId();
+        const order = await prisma.order.create({
             data: {
-                name,
-                planId,
+                data: {
+                    name,
+                    planId,
+                    userId,
+                },
                 userId,
-            },
-            type: "group_creation",
-            status: "unpaid",
-            amount: plan.price
+                orderCode,
+                type: "group_creation",
+                status: "unpaid",
+                amount: plan.price
+            }
         });
 
         return {
