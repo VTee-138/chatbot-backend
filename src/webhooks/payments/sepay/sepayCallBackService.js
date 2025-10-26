@@ -41,7 +41,7 @@ const handleSepayCallback = async (payload) => {
     const orderType = order.type;
     const planData = await prisma.plan.findUnique({
         where: {
-            planId: orderData.planId,
+            id: orderData.planId,
         },
         select: {
             durationValue: true,

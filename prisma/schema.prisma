@@ -255,7 +255,7 @@ model Order {
   id        String      @id @default(uuid()) @map("id")
   orderCode String      @unique @map("order_code")
   userId    String      @map("user_id")
-  amount    Decimal     @map("amount")
+  amount    Int         @map("amount")
   status    OrderStatus @default(unpaid) @map("status")
   createdAt DateTime    @default(now()) @map("created_at")
   updatedAt DateTime?   @map("updated_at")
