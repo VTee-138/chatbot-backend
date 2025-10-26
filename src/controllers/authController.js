@@ -561,9 +561,8 @@ const updateProfile = catchAsync(async (req, res) => {
     select: {
       id: true,
       email: true,
-      firstName: true,
-      lastName: true,
-      avatar: true,
+      userName: true,
+      avatarUrl: true,
       role: true,
       updatedAt: true,
     },

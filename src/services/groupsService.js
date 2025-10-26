@@ -161,8 +161,7 @@ class GroupsService {
         const groups = await prisma.group.findMany({
             where: {
                 groupMembers: {
-                    some: { userId },
-                    status: "accepted",
+                    some: { userId, status: "accepted" },
                 },
             },
             include: {
