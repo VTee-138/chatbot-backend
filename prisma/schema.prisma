@@ -42,6 +42,7 @@ model SsoAccount {
   @@map("sso_accounts")
 }
 
+//sau muốn custom thì thêm 1 type nữa vào để lọc custom với các plan mặc định
 model Plan {
   id            String         @id @default(uuid())
   name          String

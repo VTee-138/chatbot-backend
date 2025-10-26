@@ -7,6 +7,7 @@ const orderRouter = require('./orderRouter')
 const oauthRouter = require('../modules/channel/routes/zalo/zaloOauthRouter')
 const messageModuleRouter = require("../modules/message/routes")
 const customersRouter = require('./customersRouter');
+const planRouter = require('./planRouter');
 const router = express.Router();
 // API routes
 router.use('/auth', authRouter);
@@ -20,4 +21,6 @@ router.use('/zalo-oauth', oauthRouter);
 router.use('/zalo', messageModuleRouter);
 
 router.use('/customers', customersRouter);
+
+router.use('/plans', planRouter);
 module.exports = router;
