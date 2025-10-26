@@ -5,7 +5,6 @@ const RedisUtility = require("../../../../utils/redisUtils");
 const DatetimeUtility = require('../../../../utils/datetimeUtils');
 const { ErrorResponse, Constants } = require('../../../../utils/constant');
 const PKCEUtility = require('../../../../utils/pkceUtils');
-const app = require('../../../../server');
 
 class ZaloOauthService {
     /**
@@ -231,6 +230,66 @@ class ZaloOauthService {
         // Cleanup PKCE
         await PKCEUtility.removeCodeVerifier(state);
         return channelRecord;
+    }
+    async ensureUserHasPermission(userId, groupId) {
+        const member = await prisma.groupMember.findFirst({
+            where: { userId, groupId, status: "accepted" },
+            select: { role: true },
+        });
+
+        if (!member) throw new ErrorResponse("Bạn không thuộc nhóm này", 400);
+
+        if (!Constants.GROUP_MEMBER_OWNER_ROLES.includes(member.role)) {
+            throw new ErrorResponse("Bạn không có quyền thực hiện thao tác này", 403);
+        }
+    }
+    async ensureGroupCanAddChannel(groupId) {
+        const now = new Date();
+
+        const subscription = await prisma.subscription.findFirst({
+            where: { groupId, startedAt: { lte: now }, expireAt: { gte: now } },
+            include: { plans: true },
+        });
+
+        if (!subscription) {
+            throw new ErrorResponse("Nhóm chưa có gói đăng ký hợp lệ", 400);
+        }
+
+        const plan = subscription.plans;
+        const limits = plan.limits;
+        const maxChannels = limits?.max_channels ?? 1;
+
+        const channelCount = await prisma.channel.count({ where: { groupId } });
+
+        if (channelCount >= maxChannels) {
+            throw new ErrorResponse(
+                `Nhóm đã đạt giới hạn tối đa ${maxChannels} kênh.`,
+                400
+            );
+        }
+    }
+    async generateZaloOAuthURL(groupId) {
+        // Generate state and PKCE codeVerifier
+        const state = PKCEUtility.genState();
+        const codeVerifier = PKCEUtility.generateCodeVerifier();
+        const codeChallenge = PKCEUtility.generateCodeChallenge(codeVerifier);
+
+        // Store PKCE context in Redis/memory
+        await PKCEUtility.storeCodeVerifier(state, JSON.stringify({ codeVerifier, groupId }));
+
+        // Build Zalo OAuth URL
+        const redirectUri = process.env.NODE_ENV === 'production'
+            ? process.env.ZALO_REDIRECT_URI_PROD
+            : process.env.ZALO_REDIRECT_URI_DEV;
+
+        const authUrl = new URL('https://oauth.zaloapp.com/v4/oa/permission');
+        authUrl.searchParams.set('app_id', process.env.ZALO_APP_ID);
+        authUrl.searchParams.set('redirect_uri', redirectUri);
+        authUrl.searchParams.set('state', state);
+        authUrl.searchParams.set('code_challenge', codeChallenge);
+        authUrl.searchParams.set('code_challenge_method', 'S256');
+
+        return authUrl.toString();
     }
 }
 

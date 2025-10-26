@@ -1,7 +1,8 @@
 const express = require('express');
 const customersController = require("../controllers/customersController.js");
 const customersValidator = require('../validators/customersValidator.js');
-const { schemaValidate } = require('../middleware/validate')
+const { schemaValidate } = require('../middleware/validate');
+const { authenticate } = require('../middleware/auth.js');
 
 const router = express.Router();
 router.use(authenticate);
