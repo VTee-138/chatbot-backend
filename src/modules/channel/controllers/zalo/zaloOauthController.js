@@ -12,7 +12,7 @@ class ZaloOauthController {
             await ZaloOauthService.ensureGroupCanAddChannel(groupId);
             // 3️⃣ Tạo link OAuth Zalo
             const redirectURL = await ZaloOauthService.generateZaloOAuthURL(groupId);
-            return res.status(302).json({
+            return res.status(200).json({
                 success: true,
                 data: {
                     redirectURL

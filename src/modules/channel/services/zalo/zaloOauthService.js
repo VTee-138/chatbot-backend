@@ -238,7 +238,8 @@ class ZaloOauthService {
         });
 
         if (!member) throw new ErrorResponse("Bạn không thuộc nhóm này", 400);
-
+        console.log(member)
+        console.log(groupId)
         if (!Constants.GROUP_MEMBER_OWNER_ROLES.includes(member.role)) {
             throw new ErrorResponse("Bạn không có quyền thực hiện thao tác này", 403);
         }
@@ -279,7 +280,7 @@ class ZaloOauthService {
 
         // Build Zalo OAuth URL
         const redirectUri = process.env.NODE_ENV === 'production'
-            ? process.env.ZALO_REDIRECT_URI_PROD
+            ? `${process.env.FRONTEND_URL}/workspace/channels/callback`
             : process.env.ZALO_REDIRECT_URI_DEV;
 
         const authUrl = new URL('https://oauth.zaloapp.com/v4/oa/permission');
