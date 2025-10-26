@@ -18,4 +18,6 @@ userRouter.post('/2fa/generate', authLimiter, authenticate, redisValidate('2fa',
 userRouter.post('/2fa/enable', authLimiter, authenticate, userController.twoFactorEnable)
 userRouter.post('/2fa/disable', authLimiter, authenticate, userController.twoFactorDisable)
 // userRouter.post('/2fa', (req, res) => { return successResponse(res, {otp: TwoFAService.generateOTP('EMDWIZZ4DIWTI7C2')})}) 
+// GET /users/search?keyword=abc&page=2
+userRouter.get('/search', authenticate, userController.search);
 module.exports = userRouter
