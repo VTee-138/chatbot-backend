@@ -52,13 +52,10 @@ class GroupsService {
                 status: "accepted",
             },
             select: {
+                userId: true,
                 role: true,
-                users: {
-                    select: { isActive: true },
-                },
             },
         })
-
         if (!member) throw new ErrorResponse('Bạn đang không ở trong nhóm này', 400);
         // Nếu có danh sách roles được yêu cầu thì kiểm tra
         if (roles.length > 0 && !roles.includes(member.role)) {
@@ -122,7 +119,7 @@ class GroupsService {
     }
 
     async getGroupMembers(groupId, userId) {
-        const member = await this.groupMemberAuthorize(userId, groupId, Constants.GROUP_MEMBER_ADMIN_ROLES);
+        const member = await this.groupMemberAuthorize(userId, groupId, Constants.GROUP_MEMBER_COMMON_ROLES);
 
         const isAdmin = Constants.GROUP_MEMBER_ADMIN_ROLES.includes(member.role);
 
@@ -141,18 +138,42 @@ class GroupsService {
         if (newRole === "owner") {
             throw new ErrorResponse("Không thể gán quyền owner", 400);
         }
-
+        const target = await this.getUserInGroup(targetId, groupId)
+        if (actor.userId === targetId) {
+            throw new ErrorResponse("Không thể cập nhật quyền của chính mình", 400);
+        }
+        if (target.role === 'owner') {
+            throw new ErrorResponse("Không thể cập nhật quyền của owner", 400);
+        }
+        if (actor.role === 'manager' && target.role === 'manager') {
+            throw new ErrorResponse("Bạn không thể cập nhật quyền của manager khác", 400);
+        }
         return await prisma.groupMember.update({
-            where: { userId_groupId: { targetId, groupId } },
+            where: { userId_groupId: { userId: targetId, groupId } },
             data: { role: newRole }
         });
     }
 
     async deleteMember(userId, groupId, targetId) {
         const actor = await this.groupMemberAuthorize(userId, groupId, Constants.GROUP_MEMBER_OWNER_ROLES);
-
+        const target = await this.getUserInGroup(targetId, groupId)
+        if (actor.userId === targetId) {
+            throw new ErrorResponse("Không thể xóa chính mình", 400);
+        }
+        if (target.role === 'owner') {
+            throw new ErrorResponse("Không thể xóa owner", 400);
+        }
+        if (actor.role === 'manager' && target.role === 'manager') {
+            throw new ErrorResponse("Bạn không thể xóa manager khác", 400);
+        }
         return await prisma.groupMember.delete({
             where: { userId_groupId: { userId: targetId, groupId } },
+        });
+    }
+
+    async getUserInGroup(userId, groupId) {
+        return await prisma.groupMember.findUnique({
+            where: { userId_groupId: { userId: userId, groupId } },
         });
     }
 

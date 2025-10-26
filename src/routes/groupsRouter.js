@@ -43,15 +43,13 @@ router.get(
 );
 
 router.patch(
-  "/:id/role",
-  schemaValidate(groupValidator.UpdateRoleSchema, "params"),
+  "/role",
   schemaValidate(groupValidator.UpdateRoleSchema, "body"),
   GroupController.updateRole
 );
 
 router.delete(
-  "/:id/members",
-  schemaValidate(groupValidator.DeleteMemberSchema, "params"),
+  "/members",
   schemaValidate(groupValidator.DeleteMemberSchema, "body"),
   GroupController.deleteMember
 );

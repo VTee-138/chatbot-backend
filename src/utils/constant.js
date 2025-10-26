@@ -57,7 +57,7 @@ class Constants {
     static GROUP_MEMBER_COMMON_ROLES = [
         Constants.GROUP_ROLES.MANAGER,
         Constants.GROUP_ROLES.OWNER,
-        Constants.GROUP_ROLES.OWNER,
+        Constants.GROUP_ROLES.MEMBER,
     ]
 }
 /**

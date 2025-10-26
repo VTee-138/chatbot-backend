@@ -59,12 +59,14 @@ class GroupValidators {
     // Cập nhật vai trò của thành viên
     static UpdateRoleSchema = Joi.object({
         groupId,
-        newRole: role
+        newRole: role,
+        targetId: userId
     });
 
     // Xoá thành viên khỏi group
     static DeleteMemberSchema = Joi.object({
-        groupId
+        groupId,
+        targetId: userId
     });
     // Mời user vào group (thêm mới) 
     static InviteUserToGroupSchema = Joi.object({ groupId, userId });

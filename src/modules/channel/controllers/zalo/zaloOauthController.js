@@ -7,11 +7,11 @@ class ZaloOauthController {
             const { groupId } = req.body;
             const userId = req.user.id;
             // 1️⃣ Kiểm tra quyền
-            await this.ensureUserHasPermission(userId, groupId);
+            await ZaloOauthService.ensureUserHasPermission(userId, groupId);
             // 2️⃣ Kiểm tra giới hạn channel
-            await this.ensureGroupCanAddChannel(groupId);
+            await ZaloOauthService.ensureGroupCanAddChannel(groupId);
             // 3️⃣ Tạo link OAuth Zalo
-            const redirectURL = await this.generateZaloOAuthURL(groupId);
+            const redirectURL = await ZaloOauthService.generateZaloOAuthURL(groupId);
             return res.status(302).json({
                 success: true,
                 data: {
