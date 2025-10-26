@@ -59,5 +59,9 @@ router.delete(
 // Lấy tất cả nhóm mà user đang tham gia
 router.get('/mine', GroupController.getMyGroups);
 
+router.post('/invite',
+  schemaValidate(groupValidator.InviteUserToGroupSchema, "body"),
+  GroupController.inviteUserToGroup
+);
 
 module.exports = router;

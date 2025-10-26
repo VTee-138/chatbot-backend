@@ -4,7 +4,7 @@ const customersValidator = require('../validators/customersValidator.js');
 const { schemaValidate } = require('../middleware/validate')
 
 const router = express.Router();
-
+router.use(authenticate);
 router.post(
     '/',
     schemaValidate(customersValidator.createCustomerSchema, "body"),

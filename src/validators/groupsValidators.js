@@ -6,6 +6,11 @@ const groupId = Joi.string().uuid().required().messages({
     "any.required": "Thiếu groupId"
 });
 
+const userId = Joi.string().uuid().required().messages({
+    "string.guid": "User ID không hợp lệ",
+    "any.required": "Thiếu userId"
+});
+
 const role = Joi.string()
     .valid("member", "manager", "owner")
     .required()
@@ -61,6 +66,8 @@ class GroupValidators {
     static DeleteMemberSchema = Joi.object({
         groupId
     });
+    // Mời user vào group (thêm mới) 
+    static InviteUserToGroupSchema = Joi.object({ groupId, userId });
 }
 
 module.exports = GroupValidators;

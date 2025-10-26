@@ -86,6 +86,16 @@ class GroupController {
             next(error)
         }
     }
+    async inviteUserToGroup(req, res, next) {
+        try {
+            const { groupId, userId } = req.body;
+
+            const result = await GroupsService.inviteUserToGroup(groupId, userId);
+            res.status(200).json(result);
+        } catch (error) {
+            next(error);
+        }
+    }
 }
 
 module.exports = new GroupController();

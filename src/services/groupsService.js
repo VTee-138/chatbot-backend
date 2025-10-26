@@ -2,6 +2,72 @@ const prisma = require("../config/database");
 const { ErrorResponse, Constants } = require("../utils/constant");
 //file này sẽ cần viết thêm DTO để lọc dữ liệu trả về
 class GroupsService {
+    /**
+   * Kiểm tra xem group có hợp lệ hay không
+   * - Không bị xóa
+   * - Đang active
+   * - Có subscription còn hạn
+   */
+    //luc nao cx chi co 1 plan tai 1 thoi diem thui
+    async groupValidation(groupId) {
+        const now = new Date()
+
+        const group = await prisma.group.findUnique({
+            where: { id: groupId },
+            select: {
+                isActive: true,
+                deletedAt: true,
+                subscriptions: {
+                    where: {
+                        startedAt: { lte: now },
+                        expireAt: { gte: now },
+                    },
+                    select: { id: true },
+                },
+            },
+        })
+
+        if (!group) throw new ErrorResponse('Nhóm không tồn tại', 400);
+
+        if (!group.isActive || group.deletedAt !== null) throw new ErrorResponse('Nhóm đã bị người tạo dừng hoạt động', 400);
+
+        if (group.subscriptions.length === 0) throw new ErrorResponse('Vui lòng hãy mua gói trả phí để có thể tiếp tục', 400);
+
+
+        return group
+    }
+    /**
+     * Kiểm tra quyền của user trong group
+     * - User thuộc group
+     * - Có role hợp lệ
+     * - Status là accepted
+     */
+    async groupMemberAuthorize(userId, groupId, roles) {
+
+        // Kiểm tra thành viên
+        const member = await prisma.groupMember.findFirst({
+            where: {
+                userId,
+                groupId,
+                status: "accepted",
+            },
+            select: {
+                role: true,
+                users: {
+                    select: { isActive: true },
+                },
+            },
+        })
+
+        if (!member) throw new ErrorResponse('Bạn đang không ở trong nhóm này', 400);
+        // Nếu có danh sách roles được yêu cầu thì kiểm tra
+        if (roles.length > 0 && !roles.includes(member.role)) {
+            throw new ErrorResponse(`Chỉ ${roles} mới có thể thực hiện điều này`, 400);
+
+        }
+
+        return member;
+    }
     async acceptInvitation(userId, groupId) {
         const member = await prisma.groupMember.findUnique({
             where: { userId_groupId: { userId, groupId } }
@@ -60,7 +126,7 @@ class GroupsService {
 
         const isAdmin = Constants.GROUP_MEMBER_ADMIN_ROLES.includes(member.role);
 
-        return prisma.groupMember.findMany({
+        return await prisma.groupMember.findMany({
             where: {
                 groupId,
                 ...(isAdmin ? {} : { status: "accepted" })
@@ -125,72 +191,80 @@ class GroupsService {
         return sortedGroups;
     }
 
-    /**
-   * Kiểm tra xem group có hợp lệ hay không
-   * - Không bị xóa
-   * - Đang active
-   * - Có subscription còn hạn
-   */
-    async groupValidation(groupId) {
-        const now = new Date()
+    async getCurrentPlan(groupId) {
+        const now = new Date();
 
-        const group = await prisma.group.findUnique({
-            where: { id: groupId },
-            select: {
-                isActive: true,
-                deletedAt: true,
-                subscriptions: {
-                    where: {
-                        startedAt: { lte: now },
-                        expireAt: { gte: now },
-                    },
-                    select: { id: true },
-                },
+        const subscription = await prisma.subscription.findFirst({
+            where: {
+                groupId,
+                startedAt: { lte: now },
+                expireAt: { gte: now },
             },
-        })
+            include: {
+                plans: true,
+            },
+        });
 
-        if (!group) throw new ErrorResponse('Nhóm không tồn tại', 400);
+        if (!subscription) {
+            throw new ErrorResponse("Nhóm chưa có gói đăng ký hợp lệ", 400);
+        }
 
-        if (!group.isActive || group.deletedAt !== null) throw new ErrorResponse('Nhóm đã bị người tạo dừng hoạt động', 400);
+        return subscription.plans;
+    }
+    /**
+     * Kiểm tra giới hạn số lượng thành viên của plan hiện tại
+     */
+    async checkMemberLimit(groupId) {
+        const plan = await this.getCurrentPlan(groupId);
 
-        if (group.subscriptions.length === 0) throw new ErrorResponse('Vui lòng hãy mua gói trả phí để có thể tiếp tục', 400);
+        const limits = plan.limits;
+        const maxUsers = limits?.max_users ?? 1;
 
+        const memberCount = await prisma.groupMember.count({
+            where: {
+                groupId,
+                status: { in: ["accepted", "pending"] },
+            },
+        });
 
-        return group
+        if (memberCount >= maxUsers) {
+            throw new ErrorResponse(
+                `Nhóm đã đạt giới hạn tối đa ${maxUsers} thành viên.`,
+                400
+            );
+        }
     }
 
     /**
-     * Kiểm tra quyền của user trong group
-     * - User thuộc group
-     * - Có role hợp lệ
-     * - Status là accepted
+     * Thêm thành viên mới với trạng thái pending
      */
-    async groupMemberAuthorize(userId, groupId, roles) {
+    async inviteUserToGroup(groupId, userId) {
+        // Kiểm tra tồn tại group
+        const group = await this.groupValidation(groupId);
 
-        // Kiểm tra thành viên
-        const member = await prisma.groupMember.findFirst({
-            where: {
-                userId,
+        // Kiểm tra giới hạn plan
+        await this.checkMemberLimit(groupId);
+
+        // Kiểm tra user đã trong nhóm chưa
+        const existed = await prisma.groupMember.findFirst({
+            where: { groupId, userId, status: { in: ["accepted", "pending"] } },
+        });
+        if (existed) throw new ErrorResponse("Người dùng đang ở trong nhóm hoặc đang đợi chấp thuận", 400);
+
+        // Tạo mới
+        const member = await prisma.groupMember.create({
+            data: {
                 groupId,
-                status: "accepted",
+                userId,
+                status: "pending",
+                role: "member",
             },
-            select: {
-                role: true,
-                users: {
-                    select: { isActive: true },
-                },
-            },
-        })
-
-        if (!member) throw new ErrorResponse('Bạn đang không ở trong nhóm này', 400);
-        // Nếu có danh sách roles được yêu cầu thì kiểm tra
-        if (roles.length > 0 && !roles.includes(member.role)) {
-            throw new ErrorResponse(`Chỉ ${roles} mới có thể thực hiện điều này`, 400);
-
-        }
+        });
 
         return member;
     }
+
+
 }
 
 module.exports = new GroupsService();
