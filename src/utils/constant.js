@@ -42,6 +42,23 @@ class Constants {
     static POLL_INTERVAL_MS = 300; // khi không có lock, chờ poll DB
     static POLL_MAX_ATTEMPTS = 8; // tối đa chờ
 
+    static GROUP_ROLES = {
+        OWNER: 'owner',
+        MANAGER: 'manager',
+        MEMBER: 'member',
+    }
+    static GROUP_MEMBER_OWNER_ROLES = [
+        Constants.GROUP_ROLES.OWNER,
+    ]
+    static GROUP_MEMBER_ADMIN_ROLES = [
+        Constants.GROUP_ROLES.MANAGER,
+        Constants.GROUP_ROLES.OWNER,
+    ]
+    static GROUP_MEMBER_COMMON_ROLES = [
+        Constants.GROUP_ROLES.MANAGER,
+        Constants.GROUP_ROLES.OWNER,
+        Constants.GROUP_ROLES.OWNER,
+    ]
 }
 /**
  * Custom Error class dùng để chuẩn hóa lỗi trong hệ thống.

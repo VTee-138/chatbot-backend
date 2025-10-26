@@ -57,7 +57,9 @@ class GroupController {
 
     async updateRole(req, res, next) {
         try {
-            const result = await GroupsService.updateRole(req.user.id, req.body.groupId, req.body.newRole);
+            const { targetId, groupId, newRole } = req.body;
+            const userId = req.user.id
+            const result = await GroupsService.updateRole(userId, groupId, newRole, targetId);
             res.status(200).json(result);
         } catch (error) {
             next(error);
@@ -65,8 +67,11 @@ class GroupController {
     }
 
     async deleteMember(req, res, next) {
+
         try {
-            const result = await GroupsService.deleteMember(req.user.id, req.body.groupId);
+            const { targetId, groupId } = req.body;
+            const userId = req.user.id
+            const result = await GroupsService.deleteMember(userId, groupId, targetId);
             res.status(200).json(result);
         } catch (error) {
             next(error);

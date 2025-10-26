@@ -1,5 +1,5 @@
 const prisma = require("../config/database");
-const Constants = require("../utils/constant");
+const { ErrorResponse, Constants } = require("../utils/constant");
 //file này sẽ cần viết thêm DTO để lọc dữ liệu trả về
 class GroupsService {
     async acceptInvitation(userId, groupId) {
@@ -8,10 +8,10 @@ class GroupsService {
         });
 
         if (!member || member.status !== "pending") {
-            throw new Constants.ErrorResponse("Lời mời không hợp lệ hoặc đã được xử lý", 400);
+            throw new ErrorResponse("Lời mời không hợp lệ hoặc đã được xử lý", 400);
         }
 
-        return prisma.groupMember.update({
+        return await prisma.groupMember.update({
             where: { id: member.id },
             data: { status: "accepted" }
         });
@@ -23,17 +23,17 @@ class GroupsService {
         });
 
         if (!member || member.status !== "pending") {
-            throw new Constants.ErrorResponse("Lời mời không hợp lệ hoặc đã được xử lý", 400);
+            throw new ErrorResponse("Lời mời không hợp lệ hoặc đã được xử lý", 400);
         }
 
-        return prisma.groupMember.update({
+        return await prisma.groupMember.update({
             where: { id: member.id },
             data: { status: "declined" }
         });
     }
 
     async getMyInvitations(userId) {
-        return prisma.groupMember.findMany({
+        return await prisma.groupMember.findMany({
             where: { userId },
             include: { groups: true },
             orderBy: { createdAt: "desc" }
@@ -48,64 +48,45 @@ class GroupsService {
     }
 
     async getGroupInformation(groupId, userId) {
-        const isMember = await this.groupAuthorize(userId, groupId);
+        await this.groupAuthorize(userId, groupId, Constants.GROUP_MEMBER_COMMON_ROLES);
 
-        if (!isMember) {
-            throw new Constants.ErrorResponse("Bạn không thuộc nhóm này", 403);
-        }
-
-        return prisma.group.findUnique({
+        return await prisma.group.findUnique({
             where: { id: groupId },
-            include: { groupMembers: true }
         });
     }
 
     async getGroupMembers(groupId, userId) {
-        const isMember = await prisma.groupMember.findUnique({
-            where: { userId_groupId: { userId, groupId } }
-        });
+        const member = await this.groupMemberAuthorize(userId, groupId, Constants.GROUP_MEMBER_ADMIN_ROLES);
 
-        if (!isMember) {
-            throw new Constants.ErrorResponse("Không có quyền truy cập nhóm này", 403);
-        }
+        const isAdmin = Constants.GROUP_MEMBER_ADMIN_ROLES.includes(member.role);
 
         return prisma.groupMember.findMany({
-            where: { groupId },
+            where: {
+                groupId,
+                ...(isAdmin ? {} : { status: "accepted" })
+            },
             include: { users: true }
         });
     }
 
-    async updateRole(userId, groupId, newRole) {
-        const actor = await prisma.groupMember.findUnique({
-            where: { userId_groupId: { userId, groupId } }
-        });
-
-        if (!actor || actor.role !== "owner") {
-            throw new Constants.ErrorResponse("Chỉ owner mới được phép thay đổi role", 403);
-        }
+    async updateRole(userId, groupId, newRole, targetId) {
+        const actor = await this.groupMemberAuthorize(userId, groupId, Constants.GROUP_MEMBER_OWNER_ROLES);
 
         if (newRole === "owner") {
-            throw new Constants.ErrorResponse("Không thể gán quyền owner", 400);
+            throw new ErrorResponse("Không thể gán quyền owner", 400);
         }
 
-        return prisma.groupMember.update({
-            where: { userId_groupId: { userId, groupId } },
+        return await prisma.groupMember.update({
+            where: { userId_groupId: { targetId, groupId } },
             data: { role: newRole }
         });
     }
 
-    async deleteMember(userId, groupId) {
-        const actor = await prisma.groupMember.findUnique({
-            where: { userId_groupId: { userId, groupId } }
-        });
+    async deleteMember(userId, groupId, targetId) {
+        const actor = await this.groupMemberAuthorize(userId, groupId, Constants.GROUP_MEMBER_OWNER_ROLES);
 
-        if (!actor || (actor.role !== "owner" && actor.role !== "manager")) {
-            throw new Constants.ErrorResponse("Không có quyền xóa thành viên", 403);
-        }
-
-        return prisma.groupMember.updateMany({
-            where: { groupId, status: { not: "pending" } },
-            data: { status: "declined" }
+        return await prisma.groupMember.delete({
+            where: { userId_groupId: { userId: targetId, groupId } },
         });
     }
 
@@ -115,6 +96,7 @@ class GroupsService {
             where: {
                 groupMembers: {
                     some: { userId },
+                    status: "accepted",
                 },
             },
             include: {
@@ -143,13 +125,71 @@ class GroupsService {
         return sortedGroups;
     }
 
-    async groupAuthorize(userId, groupId, roles = []) {
-        //@todo
-        return true;
+    /**
+   * Kiểm tra xem group có hợp lệ hay không
+   * - Không bị xóa
+   * - Đang active
+   * - Có subscription còn hạn
+   */
+    async groupValidation(groupId) {
+        const now = new Date()
+
+        const group = await prisma.group.findUnique({
+            where: { id: groupId },
+            select: {
+                isActive: true,
+                deletedAt: true,
+                subscriptions: {
+                    where: {
+                        startedAt: { lte: now },
+                        expireAt: { gte: now },
+                    },
+                    select: { id: true },
+                },
+            },
+        })
+
+        if (!group) throw new ErrorResponse('Nhóm không tồn tại', 400);
+
+        if (!group.isActive || group.deletedAt !== null) throw new ErrorResponse('Nhóm đã bị người tạo dừng hoạt động', 400);
+
+        if (group.subscriptions.length === 0) throw new ErrorResponse('Vui lòng hãy mua gói trả phí để có thể tiếp tục', 400);
+
+
+        return group
     }
-    async groupValidation() {
-        //@todo
-        return true;
+
+    /**
+     * Kiểm tra quyền của user trong group
+     * - User thuộc group
+     * - Có role hợp lệ
+     * - Status là accepted
+     */
+    async groupMemberAuthorize(userId, groupId, roles) {
+
+        // Kiểm tra thành viên
+        const member = await prisma.groupMember.findFirst({
+            where: {
+                userId,
+                groupId,
+                status: "accepted",
+            },
+            select: {
+                role: true,
+                users: {
+                    select: { isActive: true },
+                },
+            },
+        })
+
+        if (!member) throw new ErrorResponse('Bạn đang không ở trong nhóm này', 400);
+        // Nếu có danh sách roles được yêu cầu thì kiểm tra
+        if (roles.length > 0 && !roles.includes(member.role)) {
+            throw new ErrorResponse(`Chỉ ${roles} mới có thể thực hiện điều này`, 400);
+
+        }
+
+        return member;
     }
 }
 

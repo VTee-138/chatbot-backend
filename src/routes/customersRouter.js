@@ -11,6 +11,7 @@ router.post(
     customersController.createCustomer
 );
 
+//hàm này chưa phân trang @@
 router.get(
     '/',
     customersController.getAllCustomers
@@ -25,7 +26,7 @@ router.get(
 router.patch(
     '/update/:id',
     schemaValidate(customersValidator.getCustomerByIdOrUpdateSchema, 'params'),
-    customersController.updateCustomer   
+    customersController.updateCustomer
 )
 
 router.delete(

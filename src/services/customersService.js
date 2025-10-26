@@ -16,6 +16,7 @@ class customersService {
         return newCustomer;
     }
 
+    //hàm này chưa phân trang
     async getAllCustomers() {
         return await prisma.customer.findMany();
     }
