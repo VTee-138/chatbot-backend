@@ -174,7 +174,7 @@ class ZaloAPIService {
      * @param {string} accessToken access_token của OA
      * @param {string} providerId ID của OA (providerId)
      */
-    async syncZaloConversations(accessToken, providerId) {
+    async syncZaloConversations(accessToken, providerId, groupId) {
 
         //  Lấy danh sách user
         const users = await this.getAllUsers(accessToken);
@@ -193,6 +193,7 @@ class ZaloAPIService {
                 },
             });
             if (conversation) {
+                await createCustomer(userDetail, groupId);
                 continue;
             }
 
@@ -201,7 +202,7 @@ class ZaloAPIService {
             const messages = await this.getUserMessages(accessToken, providerCustomerId);
             const lastMessageAt = messages[0]?.time ? new Date(messages[0]?.time) : new Date();
             // Nếu chưa tồn tại thì tạo mới
-            conversation = await conversationModels.createZaloConversation(providerId, providerCustomerId, lastMessageAt, userDetail)
+            conversation = await conversationModels.createZaloConversation(providerId, providerCustomerId, lastMessageAt, userDetail, groupId)
 
             if (!messages.length) continue;
             //  Chuẩn hóa tin nhắn theo schema Message

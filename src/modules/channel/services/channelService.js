@@ -27,7 +27,7 @@ class ChannelService {
         await this.checkUserPermission(groupId, userId);
 
         const channels = await prisma.channel.findMany({
-            where: { groupId: 'bachdh1' },
+            where: { groupId },
             select: {
                 id: true,
                 name: true,

@@ -3,9 +3,9 @@ const customersService = require("../services/customersService.js");
 class customersController {
     async createCustomer(req, res, next) {
         try {
-            const {fullName, phoneNumber, email, gender, groupId} = req.body;
+            const { fullName, phoneNumber, email, gender, groupId } = req.body;
             const newCustomer = await customersService.createNewCustomer(fullName, phoneNumber, email, gender, groupId);
-            return res.status(201).json({message: 'created newCustomer', newCustomer});
+            return res.status(201).json({ message: 'created newCustomer', newCustomer });
         }
         catch (err) {
             next(err);
@@ -14,18 +14,18 @@ class customersController {
 
     async getAllCustomers(req, res, next) {
         try {
-            const data = await customersService.getAllCustomers();
-            return res.status(201).json({message: "get all customers", data});
+            const { groupId, page } = req.query;
+            const data = await customersService.getAllCustomers(groupId, page);
+            return res.status(201).json({ message: "get all customers", data });
         }
         catch (err) {
             next(err);
         }
     }
-
     async getCustomerById(req, res, next) {
         try {
             const customer = await customersService.getCustomerById(req.params);
-            return res.status(201).json({message: "get customer", customer})
+            return res.status(201).json({ message: "get customer", customer })
         }
         catch (err) {
             next(err);
@@ -37,7 +37,7 @@ class customersController {
             const data = req.body;
             const id = req.params;
             const updatedUser = await customersService.updateCustomer(id, data);
-            res.status(201).json({message: 'update successfull', updatedUser});
+            res.status(201).json({ message: 'update successfull', updatedUser });
         }
         catch (err) {
             next(err);
@@ -48,13 +48,13 @@ class customersController {
         try {
             const id = req.params;
             await customersService.deleteCustomer(id);
-            return res.status(200).json({message: "deleted customer"});
+            return res.status(200).json({ message: "deleted customer" });
         }
         catch (err) {
             next(err);
         }
     }
-    
+
 }
 
 module.exports = new customersController();

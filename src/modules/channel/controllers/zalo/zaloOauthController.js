@@ -29,7 +29,7 @@ class ZaloOauthController {
                 throw new ErrorResponse('Invalid or expired state', Constants.BAD_REQUEST)
             }
             const channelRecord = await ZaloOauthService.createZaloChannel(code, state, oa_id);
-            zaloAPIService.syncZaloConversations(channelRecord.accessToken, channelRecord.providerId)
+            zaloAPIService.syncZaloConversations(channelRecord.accessToken, channelRecord.providerId, channelRecord.groupId)
             return res.status(200).json({
                 success: true,
                 data: 'success'
