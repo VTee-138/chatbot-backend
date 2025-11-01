@@ -23,7 +23,6 @@ class ChannelService {
 
     // Lấy danh sách channel theo groupId
     async getChannelsByGroup(groupId, userId) {
-        console.log('Checking permissions for user:', userId, 'on group:', groupId);
         await this.checkUserPermission(groupId, userId);
 
         const channels = await prisma.channel.findMany({

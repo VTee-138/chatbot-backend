@@ -14,22 +14,22 @@ const { rateLimiterGeneral, rateLimiterAuth } = require('../config/limiter');
  */
 const authenticate = (req, res, next) => {
   try {
-    req.user = { id: "7cff26a0-0fe1-4b3c-a8cc-cc440b17fd97" };
-    next()
-    //   const authHeader = req.headers.authorization;
-    //   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    //     return errorResponse(res, 'Authentication token is required', 401);
-    //   }
+    // req.user = { id: "7cff26a0-0fe1-4b3c-a8cc-cc440b17fd97" };
+    // next()
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return errorResponse(res, 'Authentication token is required', 401);
+    }
 
-    //   const token = authHeader.substring(7); // Bỏ đi "Bearer "
+    const token = authHeader.substring(7); // Bỏ đi "Bearer "
 
-    //   // Giả sử bạn có một secret key được lưu trong biến môi trường
-    //   const decodedPayload = verifyToken(token, process.JWT_SECRET);
+    // Giả sử bạn có một secret key được lưu trong biến môi trường
+    const decodedPayload = verifyToken(token, process.JWT_SECRET);
 
-    //   // Gắn payload vào request để các hàm sau có thể dùng
-    //   req.user = decodedPayload; // payload sẽ có dạng { id, email, userName, ... }
+    // Gắn payload vào request để các hàm sau có thể dùng
+    req.user = decodedPayload; // payload sẽ có dạng { id, email, userName, ... }
 
-    // next();
+    next();
   } catch (error) {
     // Xử lý các lỗi token (hết hạn, không hợp lệ)
     if (error.name === 'TokenExpiredError') {

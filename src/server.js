@@ -20,7 +20,7 @@ const { initSocket } = require('./config/socket');
 const app = express();
 app.use(express.static(path.join(__dirname, "../public")))
 // Rate limiting
-app.use(generalLimiter)
+// app.use(generalLimiter)
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -59,7 +59,7 @@ app.use(helmet({
 //   credentials: true,
 //   optionsSuccessStatus: 200,
 // }));
-const allowedOrigins = ["https://tinz.vn", "https://admin.tinz.vn"];
+const allowedOrigins = ["https://heki.aipencil.ai"];
 
 app.use(cors({
   origin: (origin, callback) => {

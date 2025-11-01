@@ -193,7 +193,7 @@ class ZaloAPIService {
                 },
             });
             if (conversation) {
-                await createCustomer(userDetail, groupId);
+                await conversationModels.createCustomer(userDetail, groupId);
                 continue;
             }
 
