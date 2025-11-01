@@ -47,16 +47,22 @@ class userController {
         return successResponse(res, { backupCodes }, "2FA enabled successfully!")
     })
     twoFactorDisable = catchAsync(async (req, res, next) => {
-
         const { token } = req.body
         const id = cookieHelper.getClientId(req)
         const userName = cookieHelper.getUserName(req)
         const user = await userCredentialModel.findUserById(id)
-        if (!user.twoFactorEnabled) return errorResponse(res, 'MFA is disabled')
-        const checker = TwoFAService.verifyOTP(token, user.secret)
-        if (!checker) return errorResponse(res, Constants.MESSAGES._TOKEN_INVALID, Constants.BAD_REQUEST)
+        
+        if (!user.twoFactorEnabled) {
+            return errorResponse(res, 'MFA is disabled', Constants.BAD_REQUEST)
+        }
+        
+        const checker = TwoFAService.verifyOTP(token, user.twoFactorSecret)
+        if (!checker) {
+            return errorResponse(res, Constants.MESSAGES._TOKEN_INVALID, Constants.BAD_REQUEST)
+        }
+        
         await userCredentialModel.disable2FAMode(userName)
-        return successResponse(res, "2FA disabled successfully")
+        return successResponse(res, null, "2FA disabled successfully")
     })
     async search(req, res, next) {
         try {

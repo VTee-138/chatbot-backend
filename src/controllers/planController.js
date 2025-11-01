@@ -4,7 +4,7 @@ class PlanController {
     async getAllPlans(req, res, next) {
         try {
             const plans = await PlanService.getAllPlans();
-            res.status(200).json({
+            return res.status(200).json({
                 success: true,
                 data: plans,
             });

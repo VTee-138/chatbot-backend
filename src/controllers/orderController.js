@@ -4,7 +4,7 @@ class OrderController {
     static async createPlanRenewalOrder(req, res, next) {
         try {
             const result = await OrderService.createPlanRenewalOrder(req);
-            res.json(result);
+            return res.json(result);
         } catch (error) {
             next(error);
         }
@@ -13,7 +13,7 @@ class OrderController {
     static async createPlanPurchaseOrder(req, res, next) {
         try {
             const result = await OrderService.createPlanPurchaseOrder(req);
-            res.json(result);
+            return res.json(result);
         } catch (error) {
             next(error);
         }
@@ -22,7 +22,7 @@ class OrderController {
     static async createGroupCreationOrder(req, res, next) {
         try {
             const result = await OrderService.createGroupCreationOrder(req);
-            res.json(result);
+            return res.json(result);
         } catch (error) {
             next(error);
         }

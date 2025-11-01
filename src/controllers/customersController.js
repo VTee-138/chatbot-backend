@@ -37,7 +37,7 @@ class customersController {
             const data = req.body;
             const id = req.params;
             const updatedUser = await customersService.updateCustomer(id, data);
-            res.status(201).json({ message: 'update successfull', updatedUser });
+            return res.status(201).json({ message: 'update successfull', updatedUser });
         }
         catch (err) {
             next(err);
