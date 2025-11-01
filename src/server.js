@@ -16,8 +16,33 @@ const errorHandler = require('./middleware/errorHandler');
 const webhookRoutes = require('./webhooks');
 const { initSocket } = require('./config/socket');
 
-
 const app = express();
+
+const allowedOrigins = [
+  'http://localhost:3001',
+  'http://localhost:3000',
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['set-cookie'],
+};
+
+app.use(cors(corsOptions));
+
+
 app.use(express.static(path.join(__dirname, "../public")))
 // Rate limiting
 // app.use(generalLimiter)
@@ -59,7 +84,7 @@ app.use(helmet({
 //   credentials: true,
 //   optionsSuccessStatus: 200,
 // }));
-const allowedOrigins = ["https://heki.aipencil.ai"];
+// const allowedOrigins = ["https://tinz.vn", "https://admin.tinz.vn"];
 
 app.use(cors({
   origin: (origin, callback) => {

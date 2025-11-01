@@ -70,7 +70,7 @@ class AuthValidators {
             }),
         userName: Joi.string()
             .pattern(/^[A-Za-z0-9_-]+$/)
-            .min(5)
+            .min(2)
             .max(200)
             .required()
             .messages({
