@@ -40,11 +40,13 @@ authRouter.post(
   schemaValidate(AuthValidators.RegisterNewUserSchema, "body"),
   register
 );
+
 // authRouter.post(
 //   "/register/check-email",
 //   schemaValidate(AuthValidators.EmailWithCaptchaSchema, "body"),
 //   checkEmailExists
 // );
+
 authRouter.post(
   "/login",
   authLimiter,
@@ -56,10 +58,10 @@ authRouter.post("/logout", logout); // Bỏ authenticate middleware vì đã che
 
 authRouter.get("/profile", authenticate, getProfile);
 authRouter.put("/profile", authenticate, updateProfile);
+
 authRouter.post(
   "/change-password",
   authenticate,
-  schemaValidate(AuthValidators.ResetPasswordSchema, "body"),
   changePassword
 );
 authRouter.post(
@@ -80,44 +82,42 @@ authRouter.post("/sso/:provider", loginSSO);
 authRouter.post("/re-authenticate", authenticate, reAuthenticate);
 
 authRouter.get("/me", authenticate, checkSession);
+
 authRouter.post(
   "/resend/:type",
-  redisValidate((req) => req.params.type, cookieHelper.getServiceGmail),
   resendVerifyEmail
 );
-authRouter.post("/logout-all", authenticate, removeAllDevices);
 
-authRouter.post(
-  "/2fa/login/verify",
-  authenticate2FA,
-  schemaValidate(AuthValidators.twoFactorSchema, "body"),
-  twoFactorVerify
-);
-authRouter.post(
-  "/2fa/login/backup-codes/verify",
-  authenticate2FA,
-  schemaValidate(AuthValidators.twoFactorSchema, "body"),
-  twoFactorBackupCodeVerify
-);
-authRouter.post(
-  "/2fa/verify",
-  schemaValidate(AuthValidators.twoFactorSchema, "body"),
-  authenticate,
-  twoFactorVerify
-);
-authRouter.post(
-  "/2fa/backup-codes/verify",
-  authenticate,
-  schemaValidate(AuthValidators.twoFactorSchema, "body"),
-  twoFactorBackupCodeVerify
-);
-authRouter.post(
-  "/2fa/backup-codes/regenerate",
-  authenticate,
-  twoFactorBackupCodeRegenerate
-);
+// authRouter.post("/logout-all", authenticate, removeAllDevices);
 
-// Debug endpoint (development only)
-authRouter.get("/debug/cookies", debugCookies);
+// authRouter.post(
+//   "/2fa/login/verify",
+//   authenticate2FA,
+//   schemaValidate(AuthValidators.twoFactorSchema, "body"),
+//   twoFactorVerify
+// );
+// authRouter.post(
+//   "/2fa/login/backup-codes/verify",
+//   authenticate2FA,
+//   schemaValidate(AuthValidators.twoFactorSchema, "body"),
+//   twoFactorBackupCodeVerify
+// );
+// authRouter.post(
+//   "/2fa/verify",
+//   schemaValidate(AuthValidators.twoFactorSchema, "body"),
+//   authenticate,
+//   twoFactorVerify
+// );
+// authRouter.post(
+//   "/2fa/backup-codes/verify",
+//   authenticate,
+//   schemaValidate(AuthValidators.twoFactorSchema, "body"),
+//   twoFactorBackupCodeVerify
+// );
+// authRouter.post(
+//   "/2fa/backup-codes/regenerate",
+//   authenticate,
+//   twoFactorBackupCodeRegenerate
+// );
 
 module.exports = authRouter;
