@@ -20,7 +20,10 @@ class GroupsService {
                 subscriptions: {
                     where: {
                         startedAt: { lte: now },
-                        expireAt: { gte: now },
+                        OR: [
+                            { expireAt: null },
+                            { expireAt: { gte: now } },
+                        ],
                     },
                     select: { id: true },
                 },
@@ -218,7 +221,10 @@ class GroupsService {
             where: {
                 groupId,
                 startedAt: { lte: now },
-                expireAt: { gte: now },
+                OR: [
+                    { expireAt: null },
+                    { expireAt: { gte: now } },
+                ],
             },
             include: {
                 plans: true,
@@ -284,7 +290,53 @@ class GroupsService {
         return member;
     }
 
+    async createPersonalFreeGroup(userId) {
+        // Lấy thông tin user
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { id: true, userName: true },
+        });
 
+        if (!user) {
+            throw new ErrorResponse("Tài khoản không tồn tại", 400);
+        }
+
+        // Lấy plan có type = 'personal' và name = 'free'
+        const plan = await prisma.plan.findFirst({
+            where: {
+                type: 'personal',
+                name: 'free',
+            },
+        });
+
+        if (!plan) {
+            throw new ErrorResponse("Plan này không tồn tại trong hệ thống", 400);
+        }
+
+        // Tạo group mới cho user
+        const group = await prisma.group.create({
+            data: {
+                name: `Workspace của tôi`,
+                ownerId: user.id,
+                isActive: true,
+                groupMembers: {
+                    create: {
+                        userId: user.id,
+                        role: 'owner',
+                        status: 'accepted',
+                    },
+                },
+                subscriptions: {
+                    create: {
+                        planId: plan.id,
+                        startedAt: new Date(),
+                    },
+                },
+            }
+        });
+
+        return group;
+    }
 }
 
 module.exports = new GroupsService();

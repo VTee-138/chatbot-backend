@@ -1108,6 +1108,7 @@ const openSession = catchAsync(async (req, res, next) => {
     if (userGroups.length === 0) {
       // User chưa có group nào - cần onboarding
       needsOnboarding = true;
+      groupsService.createPersonalFreeGroup(user.id);
     } else {
       // Set group đầu tiên làm active group mặc định
       activeGroup = {

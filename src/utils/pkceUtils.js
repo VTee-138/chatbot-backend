@@ -1,6 +1,7 @@
 // utils/pkce.js
 const crypto = require('crypto');
 const memoryStore = require("../config/memoryStore")
+const redis = require("../config/redis")
 
 class PKCEUtility {
     static CODE_VERIFIER_TTL = 5 * 60;
@@ -37,7 +38,8 @@ class PKCEUtility {
             await redis.setex(`oauth:pkce:${state}`, this.CODE_VERIFIER_TTL, value);
         } catch (err) {
             // Redis not available -> fallback to memory (not recommended for multi-instance)
-            memoryStore.set(state, { ...data, createdAt: Date.now() });
+            const value = typeof data === 'string' ? data : JSON.stringify(data);
+            memoryStore.set(state, value);
             // schedule removal
             setTimeout(() => memoryStore.delete(state), this.CODE_VERIFIER_TTL * 1000 + 1000);
         }
@@ -55,7 +57,7 @@ class PKCEUtility {
             // ignore redis error, use memory fallback
         }
         const mem = memoryStore.get(state);
-        return mem ? mem : null;
+        return mem ? JSON.parse(mem) : null;
     }
 
     /**

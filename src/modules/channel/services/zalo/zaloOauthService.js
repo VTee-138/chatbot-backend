@@ -28,7 +28,7 @@ class ZaloOauthService {
         params.append('code', code);
 
         const res = await axios.post(url, params.toString(), {
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', "secret_key": process.env.ZALO_APP_SECRET },
             timeout: 10_000
         });
 
@@ -215,7 +215,6 @@ class ZaloOauthService {
             throw new ErrorResponse('Invalid or expired state', Constants.BAD_REQUEST)
         }
         const { codeVerifier, groupId } = pkceContext;
-
         // Get Zalo app credentials (could depend on environment)
         const appId = process.env.ZALO_APP_ID;
 
@@ -248,7 +247,14 @@ class ZaloOauthService {
         const now = new Date();
 
         const subscription = await prisma.subscription.findFirst({
-            where: { groupId, startedAt: { lte: now }, expireAt: { gte: now } },
+            where: {
+                groupId,
+                startedAt: { lte: now },
+                OR: [
+                    { expireAt: null },
+                    { expireAt: { gte: now } },
+                ],
+            },
             include: { plans: true },
         });
 
@@ -276,7 +282,7 @@ class ZaloOauthService {
         const codeChallenge = PKCEUtility.generateCodeChallenge(codeVerifier);
 
         // Store PKCE context in Redis/memory
-        await PKCEUtility.storeCodeVerifier(state, JSON.stringify({ codeVerifier, groupId }));
+        await PKCEUtility.storeCodeVerifier(state, { codeVerifier, groupId });
 
         // Build Zalo OAuth URL
         const redirectUri = process.env.NODE_ENV === 'production'

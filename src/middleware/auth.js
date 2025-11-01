@@ -30,6 +30,7 @@ const authenticate = (req, res, next) => {
     req.user = decodedPayload; // payload: { id, email, userName, role, ... }
 
     next();
+    next();
   } catch (error) {
     // Handle token errors
     if (error.name === 'TokenExpiredError') {

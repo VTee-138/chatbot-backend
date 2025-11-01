@@ -1,6 +1,6 @@
 const express = require('express');
 const conversationRouter = require('./conversationRouter');
-const zaloMessageRouter = require('./zaloMessageRouter');
+const zaloMessageRouter = require('./messageRouter');
 const { authenticate } = require('../../../middleware/auth');
 const router = express.Router();
 
