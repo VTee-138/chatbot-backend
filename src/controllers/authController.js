@@ -15,6 +15,7 @@ const { getConnectionName } = require('ioredis/built/cluster/util');
 const { rateLimiterAuth, rateLimiterGeneral } = require('../config/limiter');
 const { twoFactorEnable } = require('./userController');
 const logger = require('../utils/logger');
+const groupsService = require('../services/groupsService');
 /**
  * Verify Email Sent
  */
@@ -718,6 +719,7 @@ const openSession = catchAsync(async (req, res, next) => {
     if (userGroups.length === 0) {
       // User chưa có group nào - cần onboarding
       needsOnboarding = true;
+      groupsService.createPersonalFreeGroup(user.id);
     } else {
       // Set group đầu tiên làm active group mặc định
       activeGroup = {

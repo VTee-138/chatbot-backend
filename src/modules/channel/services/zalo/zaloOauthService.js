@@ -247,7 +247,14 @@ class ZaloOauthService {
         const now = new Date();
 
         const subscription = await prisma.subscription.findFirst({
-            where: { groupId, startedAt: { lte: now }, expireAt: { gte: now } },
+            where: {
+                groupId,
+                startedAt: { lte: now },
+                OR: [
+                    { expireAt: null },
+                    { expireAt: { gte: now } },
+                ],
+            },
             include: { plans: true },
         });
 
