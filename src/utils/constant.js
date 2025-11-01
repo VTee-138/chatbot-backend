@@ -59,6 +59,27 @@ class Constants {
         Constants.GROUP_ROLES.OWNER,
         Constants.GROUP_ROLES.MEMBER,
     ]
+    static ROUTING_KEY = {
+        FACEBOOK_SEND: "facebook.msg.send",
+        FACEBOOK_RECEIVE: "facebook.msg.reply",
+        ZALO_SEND: "zalo.msg.send",
+        ZALO_RECEIVE: "zalo.msg.reply",
+        WEB_SEND:"website.msg.send",
+        WEB_RECEIVE:"website.msg.reply"
+    }
+    static QUEUE_NAME = {
+        FACEBOOK: "q-facebook",
+        ZALO: "q-zalo",
+        WEB: "q-website",
+        BOT: "q-bot",
+        HELP: "q-need-help"
+    }
+    static EXCHANGE = {
+        DIRECT:"omni.message.exchange",
+        TOPIC: "omni.sync.exchange",
+        TOPIC_OUT: "omni.out-sync.exchange",
+        DIRECT_DEADLETTER: "omni.deadletter.exchange"
+    }
 }
 /**
  * Custom Error class dùng để chuẩn hóa lỗi trong hệ thống.

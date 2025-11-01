@@ -15,8 +15,9 @@ const { generalLimiter } = require('./middleware/auth');
 const errorHandler = require('./middleware/errorHandler');
 const webhookRoutes = require('./webhooks');
 const { initSocket } = require('./config/socket');
-
-
+const MQService = require('./services/MQService')
+const { checkMQRedis } = require('./utils/checkConfiguration');
+const { initBotHelpCenter, initFacebookBot, initZaloBot, initWebBot } = require('./controllers/chatbotController');
 const app = express();
 app.use(express.static(path.join(__dirname, "../public")))
 // Rate limiting
@@ -143,7 +144,18 @@ const startServer = async () => {
     await prisma.$connect();
     console.log("✅ Database connected successfully");
     checkRedis();
+    checkMQRedis();
     checkNodeMailer();
+    await MQService.connect()
+    // Init bot help
+    initBotHelpCenter("facebook")
+    initBotHelpCenter("zalo")
+    initBotHelpCenter("web")
+    // Init get bot replies from LLM
+    initFacebookBot()
+    initZaloBot()
+    initWebBot()
+    // Start server
     server.listen(config.PORT, () => {
       console.log(`🚀 Server running on port ${config.PORT}`);
       console.log(`📍 Environment: ${config.NODE_ENV}`);
@@ -159,6 +171,8 @@ const startServer = async () => {
     const gracefulShutdown = (signal) => {
       console.log(`\n🛑 Received ${signal}, shutting down gracefully...`);
       server.close(async () => {
+        console.log("✅ Server closed");
+        await MQService.close()
         console.log("✅ HTTP server closed");
         await prisma.$disconnect();
         console.log("✅ Database connection closed");

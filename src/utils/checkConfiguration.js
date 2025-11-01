@@ -1,5 +1,6 @@
 const redis = require('../config/redis')
-const mail = require('../config/mail')
+const redisMQ = require('../config/redis-mq')
+const mail = require('../config/mail');
 async function checkRedis() {
     try {
         await redis.set("healthcheck", "ok", "EX", 5); // TTL 5s
@@ -11,6 +12,16 @@ async function checkRedis() {
         return false;
     }
 }
+async function checkMQRedis(){
+    try {
+        await redisMQ.set("healthcheck","ok", "EX", 5)
+        const value = await redis.get("healthcheck")
+        console.log("📦 MQ Redis test value:", value)
+        return true
+    } catch (error) {
+        return false
+    }
+}
 async function checkNodeMailer(){
     mail.verify((error, success) => {
         if (error){
@@ -20,4 +31,4 @@ async function checkNodeMailer(){
     })
 }
 
-module.exports = { checkRedis, checkNodeMailer}
+module.exports = { checkRedis, checkNodeMailer, checkMQRedis }

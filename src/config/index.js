@@ -48,6 +48,13 @@ module.exports = {
   REDIS_STORE_SECRET: process.env.REDIS_STORE_SECRET || process.env.JWT_SECRET || 'redis-store-secret',
   REDIS_URL: process.env.REDIS_URL || `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || 6379}`,
 
+  // REDIS MQ
+  REDIS_MQ_HOST: process.env.REDIS_MQ_HOST,
+  REDIS_MQ_PASS: process.env.REDIS_MQ_PASSWORD || '',
+  REDIS_MQ_PORT: parseInt(process.env.REDIS_MQ_PORT) || 6379,
+  REDIS_MQ_URL: process.env.REDIS_MQ_URL || `redis://${process.env.REDIS_MQ_HOST || 'localhost'}:${process.env.REDIS_MQ_PORT || 6379}`,
+  REDIS_MQ_DB: process.env.REDIS_MQ_DB || 0,
+
   // NODE MAILER
   USER_MAIL: process.env.USER_MAIL,
   APP_PASSWORD: process.env.APP_PASSWORD,
@@ -79,6 +86,9 @@ module.exports = {
   COOKIE_SAME_SITE: process.env.COOKIE_SAME_SITE || (process.env.NODE_ENV === 'production' ? 'none' : 'lax'),
   COOKIE_HTTP_ONLY: true,
   COOKIE_PATH: '/',
+
+  // Message Queue
+  MQ_URL: process.env.RABBIT_URL || 'amqp://localhost',
 
   // Frontend Domain for Cookie (production)
   FRONTEND_DOMAIN: process.env.FRONTEND_DOMAIN || undefined,
